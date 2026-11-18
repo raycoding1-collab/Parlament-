@@ -42,32 +42,85 @@ export function lamp() {
   return g;
 }
 
-/** Plane tree (Platanus): trunk with branches and clustered, noise-displaced crowns. */
+/** Plane tree (Platanus): tapered trunk and limbs, crown of alpha-cut leaf cards
+ *  whose normals point away from the crown centre so the foliage shades as a volume. */
 export function tree(seed = 1) {
   const R = rng(seed);
-  const g = { bark: [], tree: [] };
-  const H = 7 + R() * 3;
-  g.bark.push(tr(clean(new THREE.CylinderGeometry(0.18, 0.32, H * 0.55, 8)), M(0, H * 0.275, 0)));
-  for (let i = 0; i < 4; i++) {
-    const a = R() * Math.PI * 2;
-    g.bark.push(tr(clean(new THREE.CylinderGeometry(0.06, 0.14, H * 0.4, 6)), M(Math.sin(a) * 0.8, H * 0.62, Math.cos(a) * 0.8, a, 1, 1, 1, 0.5)));
+  const g = { bark: [], leaf: [] };
+  const H = 8 + R() * 4;
+  g.bark.push(tr(clean(new THREE.CylinderGeometry(0.16, 0.34, H * 0.55, 9), { smooth: true }), M(0, H * 0.275, 0)));
+  const limbs = 5;
+  for (let i = 0; i < limbs; i++) {
+    const a = (i / limbs) * Math.PI * 2 + R() * 0.6, tilt = 0.5 + R() * 0.35, L = H * (0.35 + R() * 0.15);
+    g.bark.push(tr(clean(new THREE.CylinderGeometry(0.05, 0.13, L, 6), { smooth: true }), M(Math.sin(a) * L * 0.22, H * 0.5 + L * 0.42, Math.cos(a) * L * 0.22, a, 1, 1, 1, tilt)));
   }
-  const crowns = 7;
-  for (let i = 0; i < crowns; i++) {
-    const a = (i / crowns) * Math.PI * 2 + R();
-    const r = i === 0 ? 0 : 1.6 + R() * 1.2;
-    const s = 2.0 + R() * 1.2;
-    const ico = new THREE.IcosahedronGeometry(s, 2);
-    const pp = ico.attributes.position;
-    for (let k = 0; k < pp.count; k++) {
-      const x = pp.getX(k), y = pp.getY(k), z = pp.getZ(k);
-      const n = 1 + 0.18 * Math.sin(x * 3.1 + seed) * Math.sin(y * 2.7 + i) * Math.sin(z * 3.3);
-      pp.setXYZ(k, x * n, y * n * 0.8, z * n);
+  const cy = H * 0.8, crownR = 2.6 + R() * 1.2;
+  const pos = [], nrm = [], uv = [];
+  const lobes = 9;
+  for (let l = 0; l < lobes; l++) {
+    const la = R() * Math.PI * 2, lr = l === 0 ? 0 : crownR * (0.45 + R() * 0.5), ly = cy + (R() - 0.35) * crownR * 0.9;
+    const lc = new THREE.Vector3(Math.sin(la) * lr, ly, Math.cos(la) * lr);
+    const ls = 1.4 + R() * 0.9;
+    for (let k = 0; k < 18; k++) {
+      // card centre on the lobe surface, random orientation
+      const u = R() * 2 - 1, t = R() * Math.PI * 2, rr = Math.sqrt(1 - u * u);
+      const c = lc.clone().add(new THREE.Vector3(rr * Math.cos(t), u * 0.8, rr * Math.sin(t)).multiplyScalar(ls * (0.55 + R() * 0.45)));
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(R() * 6.28, R() * 6.28, R() * 6.28));
+      const sz = 1.1 + R() * 0.8;
+      const ex = new THREE.Vector3(sz / 2, 0, 0).applyQuaternion(q), ey = new THREE.Vector3(0, sz / 2, 0).applyQuaternion(q);
+      const v = [c.clone().sub(ex).sub(ey), c.clone().add(ex).sub(ey), c.clone().add(ex).add(ey), c.clone().sub(ex).add(ey)];
+      const ou = (R() * 4 | 0) * 0.25, ov = (R() * 4 | 0) * 0.25; // atlas cell
+      const uvs = [[ou, ov], [ou + 0.25, ov], [ou + 0.25, ov + 0.25], [ou, ov + 0.25]];
+      for (const idx of [0, 1, 2, 0, 2, 3]) {
+        const p = v[idx];
+        pos.push(p.x, p.y, p.z);
+        const n = p.clone().sub(new THREE.Vector3(0, cy, 0)).normalize().lerp(new THREE.Vector3(0, 1, 0), 0.25).normalize();
+        nrm.push(n.x, n.y, n.z);
+        uv.push(uvs[idx][0], uvs[idx][1]);
+      }
     }
-    ico.computeVertexNormals();
-    g.tree.push(tr(clean(ico, { smooth: true }), M(Math.sin(a) * r, H * 0.78 + (i === 0 ? 1.2 : R() * 1.5), Math.cos(a) * r)));
   }
+  const lg = new THREE.BufferGeometry();
+  lg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  lg.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+  lg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.leaf.push(lg);
   return g;
+}
+
+/** Leaf atlas: 4×4 cells of plane-tree leaf clusters on a transparent ground. */
+export function leafTexture() {
+  const N = 1024, c = document.createElement('canvas'); c.width = c.height = N;
+  const x = c.getContext('2d');
+  const R = rng(5);
+  for (let cell = 0; cell < 16; cell++) {
+    const cx0 = (cell % 4) * N / 4, cy0 = Math.floor(cell / 4) * N / 4, S = N / 4;
+    for (let i = 0; i < 15; i++) {
+      // leaves cluster towards the cell centre so the card's square outline never shows
+      const rad = Math.sqrt(R()) * 0.36, ang = R() * Math.PI * 2;
+      const px = cx0 + S * (0.5 + Math.cos(ang) * rad), py = cy0 + S * (0.5 + Math.sin(ang) * rad), r = S * (0.05 + R() * 0.05), a = R() * Math.PI * 2;
+      const gr = 95 + R() * 70, rd = 70 + R() * 50, bl = 30 + R() * 25;
+      x.save(); x.translate(px, py); x.rotate(a);
+      x.fillStyle = `rgb(${rd | 0},${(gr + 30) | 0},${bl | 0})`;
+      // palmate plane-tree leaf: five lobes
+      x.beginPath();
+      for (let k = 0; k <= 40; k++) { const t = k / 40 * Math.PI * 2; const lob = 0.65 + 0.35 * Math.pow(Math.abs(Math.cos(t * 2.5)), 0.6); x.lineTo(Math.cos(t) * r * lob, Math.sin(t) * r * lob); }
+      x.fill();
+      x.strokeStyle = `rgba(20,40,10,0.5)`; x.lineWidth = 1; x.beginPath(); x.moveTo(0, 0); x.lineTo(r * 0.9, 0); x.stroke();
+      x.restore();
+    }
+  }
+  // dilate leaf colour into the transparent texels so mip-mapping never bleeds black fringes
+  const img = x.getImageData(0, 0, N, N), d = img.data;
+  const out = new Uint8Array(d.length);
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < 8) { out[i] = 92; out[i + 1] = 122; out[i + 2] = 52; out[i + 3] = 0; }
+    else { out[i] = d[i]; out[i + 1] = d[i + 1]; out[i + 2] = d[i + 2]; out[i + 3] = d[i + 3]; }
+  }
+  const t = new THREE.DataTexture(out, N, N, THREE.RGBAFormat);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.generateMipmaps = true;
+  t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.needsUpdate = true;
+  return t;
 }
 
 /** Flag with waving vertex shader (Hungarian tricolour). */

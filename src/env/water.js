@@ -19,6 +19,7 @@ const WaterShader = {
     uFogColor: { value: new THREE.Color() },
     uFogDensity: { value: 0.0 },
     uReflect: { value: 1.0 },
+    uStreak: { value: 0.003 },
   },
   vertexShader: /* glsl */`
     uniform mat4 textureMatrix;
@@ -41,6 +42,7 @@ const WaterShader = {
     uniform vec3 uFogColor;
     uniform float uFogDensity;
     uniform float uReflect;
+    uniform float uStreak;
     varying vec4 vUv;
     varying vec3 vWorld;
     vec2 h22(vec2 p){ p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3))); return -1.0 + 2.0 * fract(sin(p) * 43758.5453); }
@@ -70,7 +72,15 @@ const WaterShader = {
       // reflection lookup with normal-based distortion (less at distance)
       vec2 off = n.xz * uDistort * (0.35 + 0.65 * clamp(60.0 / dist, 0.0, 1.0)) * 3.0;
       vec4 uv = vUv; uv.xy += off * uv.w;
-      vec3 refl = texture2DProj(tDiffuse, uv).rgb;
+      // stretched reflections (long-exposure streaks of lights, ripples smearing vertically)
+      vec3 refl = vec3(0.0); float ws = 0.0;
+      float sl = uStreak * (0.6 + 0.8 * abs(n.x) + 0.6 * abs(n.z)) * clamp(80.0 / dist + 0.4, 0.4, 1.6);
+      for (int i = -4; i <= 4; i++) {
+        float fi = float(i), w = exp(-fi * fi / 6.0);
+        vec4 u = uv; u.y += fi * sl * u.w;
+        refl += texture2DProj(tDiffuse, u).rgb * w; ws += w;
+      }
+      refl /= ws;
       float cosT = clamp(dot(n, V), 0.0, 1.0);
       float F = 0.02 + 0.98 * pow(1.0 - cosT, 5.0);
       F = mix(0.25, 1.0, F) * uReflect;
@@ -80,8 +90,8 @@ const WaterShader = {
       vec3 H = normalize(uSunDir + V);
       float spec = pow(max(dot(n, H), 0.0), 900.0) * 30.0 + pow(max(dot(n, H), 0.0), 120.0) * 0.6;
       col += uSunColor * spec * step(0.0, uSunDir.y + 0.05);
-      float fog = 1.0 - exp(-uFogDensity * uFogDensity * dist * dist);
-      col = mix(col, uFogColor, fog);
+      vec3 Th = exp(-uFogDensity * dist * vec3(0.86, 1.0, 1.2));
+      col = col * Th + uFogColor * (1.0 - Th);
       gl_FragColor = vec4(col, 1.0);
     }`,
 };

@@ -26,9 +26,9 @@ const srv = http.createServer((req, res) => { const p = path.join(root, decodeUR
       if (s.pos) a.look(s.pos, s.target, s.fov);
       a.setTime(s.time || 12.0);
       if (s.js) eval(s.js);
-      if (!s.big) a.render();
+      if (!s.big) { a.render(); if (s.frames) a.renderStill(s.frames); }
     }, s);
-    const data = s.big ? await pg.evaluate((s) => window.__app.screenshot(s.big[0], s.big[1], false), s) : await pg.evaluate(() => window.__app.renderer.domElement.toDataURL('image/png'));
+    const data = s.big ? await pg.evaluate((s) => window.__app.screenshot(s.big[0], s.big[1], false, s.frames || 16), s) : await pg.evaluate(() => window.__app.renderer.domElement.toDataURL('image/png'));
     fs.writeFileSync(s.out, Buffer.from(data.split(',')[1], 'base64'));
     console.log('wrote', s.out, ((Date.now() - t1) / 1000).toFixed(1) + 's');
   }

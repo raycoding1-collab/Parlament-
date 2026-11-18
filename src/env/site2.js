@@ -7,6 +7,7 @@ import { M, tr, box, boxMin, prism, pyramid, lathe, extrude, flat, shape, clean,
 import { lamp, tree, makeFlag } from './site.js';
 import { roof } from '../arch/roofs.js';
 import SITE_DATA from '../data/site.json';
+import PLAN from '../data/plan.json';
 
 export const LEVEL = { street: 0, quay: -3.6, water: -9.0 };
 const pts2 = (f) => { const o = []; for (let i = 0; i < f.length; i += 2) o.push(new THREE.Vector2(f[i], f[i + 1])); return o; };
@@ -171,7 +172,7 @@ function geo(pos, uv) {
 export function buildSite2(kit, mats, U) {
   const S = SITE_DATA, T = S.terrain, R = rng(7);
   // ---------- terrain
-  kit.add('asphalt', triMesh(T.land));
+  kit.add('paving', triMesh(T.land));   // pavements & squares: light stone; roads are asphalt ribbons on top
   kit.add('asphalt', triMesh(T.quay));
   for (const l of T.riverWalls) kit.add('quay', wallStrip(l, () => LEVEL.water - 3, (p) => (p.y < 230 ? LEVEL.quay : 0)));
   for (const l of T.retain) {
@@ -214,6 +215,8 @@ export function buildSite2(kit, mats, U) {
   for (const [x, z] of S.trees) kit.put('tree' + ((R() * 6) | 0), M(x, 0, z, R() * 6.28, 0.85 + R() * 0.3, 0.85 + R() * 0.35, 0.85 + R() * 0.3));
   // ---------- lamps: terrace edge in front of the river façade, Kossuth tér walks
   if (!kit.has('lamp')) kit.def('lamp', () => lamp());
+  const lampPts = [];
+  const putLamp = (m) => { kit.put('lamp', m); const e = m.elements; lampPts.push([e[12], e[14], 1]); };
   for (const l of T.riverWalls) {
     const P = pts2(l); let acc = 0;
     for (let i = 0; i < P.length - 1; i++) {
@@ -222,12 +225,12 @@ export function buildSite2(kit, mats, U) {
       for (let t = (16 - acc % 16) % 16; t < L; t += 16) {
         const p = a.clone().lerp(b, t / L); const nx = -(b.y - a.y) / L, nz = (b.x - a.x) / L;
         const s = (p.y - 1.4 * nz < p.y) ? -1 : 1; // step towards Pest (−z)
-        kit.put('lamp', M(p.x + nx * 1.4 * (nz < 0 ? 1 : -1), LEVEL.quay, p.y - Math.abs(nz) * 1.4));
+        putLamp(M(p.x + nx * 1.4 * (nz < 0 ? 1 : -1), LEVEL.quay, p.y - Math.abs(nz) * 1.4));
       }
       acc += L;
     }
   }
-  for (let x = -170; x <= 170; x += 20) kit.put('lamp', M(x, 0, -76));
+  for (let x = -170; x <= 170; x += 20) putLamp(M(x, 0, -76));
   // ---------- buildings
   const out = { city0: [], city1: [], city2: [], city3: [], city4: [], cityRoof: [], cityTile: [] };
   for (const b of S.buildings) cityBuilding(b, R, out);
@@ -254,5 +257,56 @@ export function buildSite2(kit, mats, U) {
   kit.add('gold', clean(new THREE.SphereGeometry(0.45, 16, 12)), M(0, 40.3, -100));
   const flag = makeFlag(mats, U);
   flag.position.set(0.3, 36.5, -100);
-  return { flag };
+  return { flag, nightMap: nightLightmap(S, lampPts) };
+}
+
+/**
+ * Night lightmap over ±1024 m (1 m/px): warm pools under every lamp, sodium/LED
+ * street lighting along the OSM streets, and the floodlights' spill on the
+ * terrace round the Parliament. Sampled by ground and wall materials.
+ */
+function nightLightmap(S, lamps) {
+  const N = 2048, c = document.createElement('canvas'); c.width = c.height = N;
+  const g = c.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, N, N);
+  g.globalCompositeOperation = 'lighter';
+  const X = (x) => x + 1024, Z = (z) => z + 1024;
+  const pool = (x, z, r, col, a) => {
+    const gr = g.createRadialGradient(X(x), Z(z), 0, X(x), Z(z), r);
+    gr.addColorStop(0, `rgba(${col},${a})`); gr.addColorStop(0.35, `rgba(${col},${a * 0.55})`); gr.addColorStop(1, `rgba(${col},0)`);
+    g.fillStyle = gr; g.beginPath(); g.arc(X(x), Z(z), r, 0, Math.PI * 2); g.fill();
+  };
+  // street lighting along the real streets (alternating sides, ~30 m spacing)
+  const widths = { primary: 14, secondary: 13, tertiary: 10, residential: 8, unclassified: 7, living_street: 6, pedestrian: 5, service: 4 };
+  const R = rng(99);
+  for (const r of S.roads) {
+    const w = widths[r.k]; if (!w) continue;
+    const p = r.p; let acc = 0, side = 1;
+    for (let i = 0; i < p.length - 2; i += 2) {
+      const ax = p[i], az = p[i + 1], bx = p[i + 2], bz = p[i + 3];
+      if (Math.abs(ax) > 1000 || Math.abs(az) > 1000) continue;
+      const L = Math.hypot(bx - ax, bz - az); if (L < 0.1) continue;
+      const nx = -(bz - az) / L, nz = (bx - ax) / L;
+      for (let t = (30 - acc % 30) % 30; t < L; t += 30) {
+        const x = ax + (bx - ax) * t / L + nx * side * w * 0.45, z = az + (bz - az) * t / L + nz * side * w * 0.45;
+        const warm = r.k === 'pedestrian' ? '255,214,160' : (R() < 0.6 ? '255,178,96' : '255,220,175');
+        pool(x, z, 15, warm, 0.5); side = -side;
+      }
+      acc += L;
+    }
+  }
+  // the ornamental lamps round the Parliament (brighter, whiter)
+  for (const [x, z] of lamps) pool(x, z, 11, '255,224,180', 0.75);
+  // floodlight spill on the terrace: a warm band hugging the building's outline
+  const o = PLAN.outline;
+  g.lineJoin = 'round';
+  for (const [wdt, a] of [[34, 0.16], [20, 0.22], [9, 0.3]]) {
+    g.strokeStyle = `rgba(255,170,85,${a})`; g.lineWidth = wdt; g.beginPath();
+    for (let i = 0; i < o.length; i += 2) { const fn = i ? 'lineTo' : 'moveTo'; g[fn](X(o[i]), Z(o[i + 1])); }
+    g.closePath(); g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.flipY = false; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true;
+  return t;
 }

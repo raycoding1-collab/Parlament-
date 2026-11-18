@@ -7,13 +7,18 @@ import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
-import { createMaterials, U } from './materials/materials.js';
+import { AccumPass, GradePass } from './core/passes.js';
+import { createMaterials, U, nightGround } from './materials/materials.js';
+import { installHaze, weather } from './materials/realism.js';
+installHaze();
 import { Kit } from './geo/kit.js';
 import { buildBuilding2 } from './arch/building2.js';
 import { buildSite2, LEVEL } from './env/site2.js';
+import { leafTexture } from './env/site.js';
 import { createSky } from './env/sky.js';
+import { createAtmosphere, sunTransmittance, skyRadiance } from './env/atmosphere.js';
 import { createWater } from './env/water.js';
-import { PRESETS, VIEWS } from './presets.js';
+import { PRESETS, VIEWS, sunDir } from './presets.js';
 
 const params = new URLSearchParams(location.search);
 const isMobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || Math.min(screen.width, screen.height) < 600;
@@ -57,7 +62,7 @@ controls.minDistance = 25;
 controls.maxDistance = 2600;
 controls.maxPolarAngle = Math.PI * 0.53;
 
-let composer, renderPass, gtao, bloom, smaa, output, water, sky, sun, hemi, flag, pmrem, envRT;
+let composer, renderPass, gtao, bloom, smaa, output, water, sky, sun, hemi, flag, pmrem, envRT, atm, accum, grade;
 let currentPreset = params.get('preset') || 'golden';
 let building, envGroup;
 
@@ -66,8 +71,10 @@ async function init() {
   const mats = createMaterials(quality);
   // tinted plaster variants for the Pest apartment blocks
   const tints = [0xd9d0c0, 0xcbbd9f, 0xbdb9b2, 0xd6c8ac, 0xc9b5a4];
-  tints.forEach((c, i) => { const m = mats.city.clone(); m.color.set(c); m.userData.isCity = true; mats['city' + i] = m; });
+  tints.forEach((c, i) => { const m = mats.city.clone(); m.color.set(c); m.userData.isCity = true; weather(m, { amount: 0.9, tint: 0.16, grime: [0.6, 0.57, 0.53] }); nightGround(m, 7); mats['city' + i] = m; });
   mats.cityAll = tints.map((_, i) => mats['city' + i]);
+  mats.leaf = new THREE.MeshStandardMaterial({ name: 'leaf', map: leafTexture(), alphaTest: 0.42, side: THREE.DoubleSide, roughness: 0.78, color: 0xe2e6c8 });
+  weather(mats.leaf, { amount: 0, tint: 0.35, streak: 0, under: 0, top: 0, base: 0 });
 
   await step('Laying out the plan: wings, courtyards, chambers…', 18);
   const kit = new Kit(mats);
@@ -84,10 +91,12 @@ async function init() {
   envGroup.name = 'Budapest';
   scene.add(envGroup);
   flag = site.flag; scene.add(flag);
+  U.uNightMap.value = site.nightMap;
   console.log('stats', JSON.stringify(building.userData.stats), JSON.stringify(envGroup.userData.stats));
   console.log('report', JSON.stringify(building.userData.report.slice(0, 14)));
 
-  sky = createSky();
+  atm = createAtmosphere(renderer);
+  sky = createSky(atm.texture);
   scene.add(sky.mesh);
   water = createWater(quality.refl);
   const getRC = water.getReflectionCamera;
@@ -157,56 +166,97 @@ function setupComposer() {
   composer.addPass(gtao);
   bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.3, 0.5, 0.9);
   composer.addPass(bloom);
+  accum = new AccumPass();               // progressive refinement when the view is still
+  composer.addPass(accum);
   output = new OutputPass();
   composer.addPass(output);
   smaa = new SMAAPass();
   smaa.enabled = quality.samples === 0;
   composer.addPass(smaa);
+  grade = new GradePass();               // lens & film
+  composer.addPass(grade);
+  resetAccum = () => accum.reset();
 }
 
-function applyPreset(name, immediate) {
+const SKY_I = 20;      // sun radiance scale of the scattering LUT
+const SUN_E = 9;       // direct-sun irradiance (≈5:1 sun:sky at noon)
+const lumi = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+function applyPreset(name) {
   const P = PRESETS[name] || PRESETS.golden;
   currentPreset = name;
+  const sd = sunDir(P.az, P.el);
+  const md = P.moon ? sunDir(P.moon.az, P.moon.el) : new THREE.Vector3(0, -1, 0);
+  const T = sunTransmittance(sd, P.turb);                    // transmitted sun colour (0…1)
+  const above = sd.y > -0.01;
+  atm.update(sd, SKY_I, P.turb, md, 0);
+  const zen = skyRadiance(new THREE.Vector3(0, 1, 0), sd, SKY_I, P.turb);
+  const hz = (az) => skyRadiance(sunDir(az, 4), sd, SKY_I, P.turb);
+  const hSun = hz(P.az), hAway = hz(P.az + 180), hSide = hz(P.az + 90);
+  // twilight glow when the sun is just below the horizon (multiple scattering)
+  const tw = Math.max(0, Math.min(1, (P.el + 11) / 8)) * Math.max(0, Math.min(1, (3 - P.el) / 4));
+  const night = P.night || { zen: new THREE.Color(0, 0, 0), hor: new THREE.Color(0, 0, 0) };
+
   const su = sky.uniforms;
-  su.uSunDir.value.copy(P.sun);
-  su.uZenith.value.copy(P.zenith); su.uHorizon.value.copy(P.horizon); su.uHorizonAway.value.copy(P.horizonAway || P.horizon); su.uGround.value.copy(P.ground);
-  su.uSunColor.value.copy(P.sunColor); su.uGlow.value = P.glow; su.uSunSize.value = P.sunSize;
-  su.uCloud.value = P.cloud; su.uCloudLit.value.copy(P.cloudLit); su.uCloudDark.value.copy(P.cloudDark);
-  su.uStars.value = P.stars; su.uMoon.value = P.moon; su.uHaze.value = P.haze;
-  if (P.moonLight) su.uMoonDir.value.copy(P.moonLight.dir);
+  su.uSunDir.value.copy(sd);
+  su.uSunDisc.value.setRGB(T[0], T[1], T[2]).multiplyScalar(above ? 2600 : 0);
+  su.uTwi.value.setRGB(0.010, 0.019, 0.046).multiplyScalar(tw);
+  su.uTwiGlow.value.setRGB(0.085, 0.036, 0.013).multiplyScalar(tw);
+  su.uNightZen.value.copy(night.zen); su.uNightHor.value.copy(night.hor);
+  su.uCloud.value = P.cloud;
+  su.uCloudSun.value.setRGB(T[0], T[1], T[2]).multiplyScalar(SKY_I * 0.075 * (above ? 1 : 0));
+  su.uCloudAmb.value.setRGB(zen[0] * 1.6 + hAway[0] * 0.25, zen[1] * 1.6 + hAway[1] * 0.25, zen[2] * 1.6 + hAway[2] * 0.25)
+    .add(new THREE.Color(0.012, 0.016, 0.03).multiplyScalar(tw)).add(night.hor.clone().multiplyScalar(1.6));
+  su.uStars.value = P.stars || 0; su.uMoon.value = P.moon && P.moon.i > 0 ? 1 : 0; su.uMoonDir.value.copy(md);
+  su.uGround.value.setRGB(0.06 * lumi(zen) + night.hor.r, 0.06 * lumi(zen) + night.hor.g, 0.06 * lumi(zen) + night.hor.b);
 
-  const L = P.sunI > 0 ? { dir: P.sun, color: P.sunColor, i: P.sunI } : P.moonLight;
-  sun.color.copy(L.color);
-  sun.intensity = L.i;
-  sun.position.copy(L.dir).multiplyScalar(600);
-  sun.target.position.set(0, 0, 0);
-  sun.castShadow = L.i > 0.5;
+  // the sun (or moon) as the shadow-casting light
+  if (above && lumi(T) > 0.002) {
+    const m = Math.max(T[0], T[1], T[2]);
+    sun.color.setRGB(T[0] / m, T[1] / m, T[2] / m);
+    sun.intensity = SUN_E * m;
+    sun.position.copy(sd).multiplyScalar(600);
+    sun.castShadow = true;
+  } else {
+    sun.color.setRGB(0.62, 0.72, 1.0);
+    sun.intensity = P.moon ? P.moon.i : 0.0;
+    sun.position.copy(md).multiplyScalar(600);
+    sun.castShadow = sun.intensity > 0.015;
+  }
+  baseSunDir.copy(sun.position).normalize();
 
-  scene.fog = new THREE.FogExp2(P.fog, P.fogD);
+  // aerial perspective: haze colour = sky near the horizon (+ twilight / city glow)
+  const haze = new THREE.Color((hAway[0] + hSide[0]) / 2, (hAway[1] + hSide[1]) / 2, (hAway[2] + hSide[2]) / 2)
+    .multiplyScalar(0.6).add(new THREE.Color(0.02, 0.03, 0.06).multiplyScalar(tw)).add(night.hor.clone().multiplyScalar(0.9));
+  scene.fog = new THREE.FogExp2(haze, P.haze);
   renderer.toneMappingExposure = P.exposure;
   U.uFlood.value = P.flood;
   U.uGlow.value = P.glowWin * 2.2;
   U.uLamp.value = P.lamps;
-  for (const m of [envGroup]) m.traverse(o => { if (o.material && o.material.userData.isCity) o.material.emissiveIntensity = P.flood > 0 ? 0.7 : 0; });
+  for (const m of [envGroup]) m.traverse(o => { if (o.material && o.material.userData.isCity) o.material.emissiveIntensity = P.flood > 0 ? 0.7 * P.flood + 0.05 : 0; });
 
   const wu = water.material.uniforms;
-  wu.uSunDir.value.copy(P.sunI > 0 ? P.sun : (P.moonLight ? P.moonLight.dir : P.sun));
-  wu.uSunColor.value.copy(P.sunI > 0 ? P.sunColor : new THREE.Color(0.5, 0.55, 0.7)).multiplyScalar(P.sunI > 0 ? 1 : 0.03 * P.moon);
-  wu.uDeep.value.copy(P.water.deep); wu.uSkyTint.value.copy(P.water.tint);
-  wu.uFogColor.value.copy(P.fog); wu.uFogDensity.value = P.fogD;
+  wu.uSunDir.value.copy(above ? sd : md);
+  wu.uSunColor.value.setRGB(T[0], T[1], T[2]).multiplyScalar(above ? SKY_I * 1.2 : 0);
+  if (!above && P.moon) wu.uSunColor.value.setRGB(0.5, 0.55, 0.7).multiplyScalar(P.moon.i * 2);
+  wu.uDeep.value.copy(P.water.deep);
+  wu.uSkyTint.value.setRGB(zen[0], zen[1], zen[2]);
+  wu.uFogColor.value.copy(haze); wu.uFogDensity.value = P.haze;
+  wu.uStreak.value = P.flood > 0 ? 0.011 : 0.0035;
 
   bloom.strength = P.bloom[0]; bloom.radius = P.bloom[1]; bloom.threshold = P.bloom[2];
   gtao.blendIntensity = P.ao;
-  // environment lighting from the sky
+  // image-based lighting from the very same sky
   const envScene = new THREE.Scene();
-  const envSky = new THREE.Mesh(sky.mesh.geometry, sky.mesh.material);
-  envScene.add(envSky);
+  envScene.add(new THREE.Mesh(sky.mesh.geometry, sky.mesh.material));
   if (envRT) envRT.dispose();
   envRT = pmrem.fromScene(envScene, 0, 1, 6000);
   scene.environment = envRT.texture;
-  scene.environmentIntensity = P.env;
+  scene.environmentIntensity = 1.0;
+  resetAccum && resetAccum();
   document.querySelectorAll('[data-preset]').forEach(b => b.classList.toggle('on', b.dataset.preset === name));
 }
+const baseSunDir = new THREE.Vector3(0, 1, 0);
+let resetAccum = null;
 
 // ------------------------------------------------------------------ camera
 let flight = null;
@@ -242,11 +292,18 @@ function adapt(dt) {
     console.log('adaptive quality ->', qualityName, (avg * 1000).toFixed(0) + 'ms');
   }
 }
+let lastKey = '', still = 0, simTime = 0;
+const MAXACC = { high: 64, medium: 24, low: 8 };
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.1);
-  adapt(dt);
-  const t = clock.elapsedTime;
+  const key = camera.position.toArray().map(v => v.toFixed(3)).join() + camera.quaternion.toArray().map(v => v.toFixed(4)).join() + camera.fov + camera.aspect;
+  const moving = key !== lastKey || flight || autoOrbit;
+  if (moving) { lastKey = key; still = 0; } else still++;
+  const refine = still > 8;
+  if (refine && accum.n >= MAXACC[qualityName]) { controls.update(); return; } // finished still: nothing to redraw
+  if (!refine) { adapt(dt); simTime += dt; }
+  const t = simTime;
   U.uTime.value = t;
   sky.uniforms.uTime.value = t;
   water.material.uniforms.uTime.value = t;
@@ -266,12 +323,48 @@ function animate() {
   }
   controls.update();
   sky.mesh.position.copy(camera.position);
-  render();
+  render(refine);
 }
-function render() {
+// Halton (2,3) sub-pixel jitter + sun-disc jitter for anti-aliasing and true penumbrae
+const halton = (i, b) => { let f = 1, r = 0; while (i > 0) { f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; };
+const _sj = new THREE.Vector3(), _t1 = new THREE.Vector3(), _t2 = new THREE.Vector3();
+function render(jitter = false) {
   frameNo++;
+  if (jitter) {
+    const k = accum.n + 1;
+    const W = renderer.domElement.width, H = renderer.domElement.height;
+    camera.setViewOffset(W, H, halton(k, 2) - 0.5, halton(k, 3) - 0.5, W, H);
+    // sample the sun's disc (0.27°) widened by forward scattering → realistic soft shadows
+    const a = halton(k, 5) * Math.PI * 2, rr = Math.sqrt(halton(k, 7)) * 0.0062;
+    _t1.set(0, 1, 0).cross(baseSunDir).normalize(); _t2.copy(baseSunDir).cross(_t1);
+    _sj.copy(baseSunDir).addScaledVector(_t1, Math.cos(a) * rr).addScaledVector(_t2, Math.sin(a) * rr).normalize();
+  } else {
+    camera.clearViewOffset();
+    _sj.copy(baseSunDir);
+    accum.reset();
+  }
+  fitShadow(_sj);
+  grade.quad.material.uniforms.uTime.value = performance.now() * 0.001;
   composer.render();
 }
+/** Fit the sun's shadow frustum to what the camera looks at (crisp close-ups, shadows over the city from the air). */
+const _fc = new THREE.Vector3();
+function fitShadow(dir) {
+  const d = camera.position.distanceTo(controls.target);
+  const r = THREE.MathUtils.clamp(d * 0.75, 140, 1100);
+  _fc.copy(controls.target); _fc.y = 0;
+  // keep the Parliament inside the frustum for distant views of it
+  if (_fc.length() > r * 0.6) _fc.multiplyScalar(r * 0.6 / _fc.length());
+  const step = (r * 2) / sun.shadow.mapSize.x;  // snap to texels to avoid shimmering
+  _fc.x = Math.round(_fc.x / step) * step; _fc.z = Math.round(_fc.z / step) * step;
+  sun.target.position.copy(_fc);
+  sun.position.copy(_fc).addScaledVector(dir, 1500);
+  const sc = sun.shadow.camera;
+  if (sc.right !== r) { sc.left = -r; sc.right = r; sc.top = r; sc.bottom = -r; sc.near = 200; sc.far = 3200; sc.updateProjectionMatrix(); }
+  sun.shadow.normalBias = 0.04 + r * 0.00012;
+}
+/** Render a refined still: n jittered frames averaged. */
+function renderStill(n = 16) { accum.reset(); for (let i = 0; i < n; i++) render(true); }
 
 function resize() {
   const w = innerWidth, h = innerHeight;
@@ -284,7 +377,7 @@ function resize() {
 addEventListener('resize', resize);
 
 // ------------------------------------------------------------------ 4K still & GLB export
-async function screenshot(W = 3840, H = 2160, download = true) {
+async function screenshot(W = 3840, H = 2160, download = true, frames = 24) {
   const prev = { ao: gtao.enabled };
   renderer.setPixelRatio(1);
   renderer.setSize(W, H, false);
@@ -294,7 +387,8 @@ async function screenshot(W = 3840, H = 2160, download = true) {
   water.getRenderTarget().setSize(W >> 1, H >> 1);
   const prevQ = quality; quality = { ...quality, reflDetail: true };
   gtao.enabled = true;
-  render(); render();
+  render();
+  renderStill(frames);
   let result;
   if (download) {
     const blob = await new Promise(r => renderer.domElement.toBlob(r, 'image/png'));
@@ -356,7 +450,7 @@ async function exportGLB() {
     for (const [g, a] of removed) g.setAttribute('aExtra', a);
   }
 }
-window.__app = { applyPreset, setView, screenshot, exportGLB, renderer, scene, camera, render, controls, U, sky, water, setTime: (t) => { U.uTime.value = t; sky.uniforms.uTime.value = t; water.material.uniforms.uTime.value = t; },
+window.__app = { applyPreset, setView, screenshot, exportGLB, renderer, scene, camera, render, renderStill, controls, U, sky, water, setTime: (t) => { U.uTime.value = t; sky.uniforms.uTime.value = t; water.material.uniforms.uTime.value = t; },
   look(pos, target, fov) { camera.position.set(...pos); controls.target.set(...target); if (fov) camera.fov = fov; camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); controls.update(); sky.mesh.position.copy(camera.position); }, get stats() { return building.userData.stats; }, get building() { return building; } };
 
 // ------------------------------------------------------------------ UI

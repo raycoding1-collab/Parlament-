@@ -4,6 +4,7 @@
 // hundreds of real-time lights.
 import * as THREE from 'three';
 import * as TX from './textures.js';
+import { weather } from './realism.js';
 
 export const U = {
   uFlood: { value: 0 },
@@ -13,6 +14,7 @@ export const U = {
   uTime: { value: 0 },
   uPoints: { value: [] },   // vec4: xyz position, w intensity
   uLamp: { value: 0 },
+  uNightMap: { value: null },
 };
 const MAXP = 32;
 for (let i = 0; i < MAXP; i++) U.uPoints.value.push(new THREE.Vector4(0, -1000, 0, 0));
@@ -94,6 +96,16 @@ function patchGlass(mat) {
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvExtra = aExtra;\nvGPos = position;');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', '#include <common>\nuniform float uGlow;\nuniform vec3 uGlowColor;\nvarying float vExtra;\nvarying vec3 vGPos;')
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+      #ifdef USE_FOG
+      {
+        // curtains / blinds behind some panes, slightly different glazing per window
+        vec3 cell = floor(vHazeW * vec3(0.55, 0.26, 0.55));
+        float hc = fract(sin(dot(cell, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+        diffuseColor.rgb += vec3(0.085, 0.074, 0.062) * step(0.58, hc) * (0.5 + 0.9 * fract(hc * 7.0));
+        roughnessFactor = clamp(roughnessFactor + (fract(hc * 13.0) - 0.5) * 0.05, 0.02, 0.3);
+      }
+      #endif`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
       {
         // warm interior light behind leaded panes; a slight vertical gradient fakes depth
@@ -115,6 +127,31 @@ function lampPatch(mat) {
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance *= uLamp;');
   };
   mat.customProgramCacheKey = () => 'lamp';
+  return mat;
+}
+
+/** Street-lamp / floodlight spill on the ground at night (lightmap in world XZ). */
+export function nightGround(mat, heightFall = 0) {
+  const prev = mat.onBeforeCompile;
+  const prevKey = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => '';
+  mat.onBeforeCompile = (sh, r) => {
+    if (prev) prev(sh, r);
+    sh.uniforms.uNightMap = U.uNightMap; sh.uniforms.uLampG = U.uLamp;
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform sampler2D uNightMap;\nuniform float uLampG;')
+      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+      #ifdef USE_FOG
+      if (uLampG > 0.0) {
+        vec2 nuv = (vHazeW.xz + 1024.0) / 2048.0;
+        vec3 nl = texture2D(uNightMap, nuv).rgb;
+        nl = nl * nl * 2.6;
+        float hf = ${heightFall > 0 ? `exp(-max(vHazeW.y, 0.0) / ${heightFall.toFixed(1)})` : '1.0'};
+        reflectedLight.directDiffuse += material.diffuseContribution * nl * uLampG * hf;
+        reflectedLight.directSpecular += material.specularColorBlended * nl * uLampG * hf * 0.3;
+      }
+      #endif`);
+  };
+  mat.customProgramCacheKey = () => prevKey() + 'night' + heightFall;
   return mat;
 }
 
@@ -172,11 +209,35 @@ export function createMaterials(q = { tex: 2048 }) {
   m.flagWhite = std({ color: 0xf4f4f0, roughness: 0.8, side: THREE.DoubleSide });
   m.flagGreen = std({ color: 0x2f7d32, roughness: 0.8, side: THREE.DoubleSide });
   m.tree = std({ color: 0x3d5a2a, roughness: 0.9 });
-  m.bark = std({ color: 0x4a3c30, roughness: 1 });
+  m.bark = std({ color: 0x6b6150, roughness: 1 });
+  m.leaf = null; // set in main.js (needs a canvas texture)
   m.hill.userData.cast = false;
   m.grass.userData.cast = false;
   m.asphalt.userData.cast = false;
   m.paving.userData.cast = false;
+  // world-space weathering (rain streaks, soot under overhangs, ledge dirt, splash zone, tonal variation)
+  const LIME = { amount: 1.0, tint: 0.07, grime: [0.52, 0.49, 0.45] };
+  weather(m.stone, LIME);
+  weather(m.carve, { ...LIME, amount: 1.15, under: 1.3 });
+  weather(m.statue, { ...LIME, amount: 1.3, under: 1.4, grime: [0.48, 0.46, 0.43] });
+  weather(m.dark, { amount: 0.5, tint: 0.05 });
+  weather(m.shade, { amount: 0.4, tint: 0.05 });
+  weather(m.roof, { amount: 0.35, tint: 0.14, grime: [1.28, 1.24, 1.18], under: 0, top: 0.4, base: 0 });
+  weather(m.domeRoof, { amount: 0.25, tint: 0.1, grime: [1.2, 1.17, 1.12], under: 0, top: 0.3, base: 0 });
+  weather(m.copper, { amount: 0.6, tint: 0.2, grime: [0.72, 0.82, 0.78], under: 0.4, top: 0.2, base: 0 });
+  weather(m.lead, { amount: 0.3, tint: 0.1, grime: [1.15, 1.15, 1.12], base: 0 });
+  weather(m.brick, { amount: 0.7, tint: 0.1, grime: [0.6, 0.56, 0.52] });
+  weather(m.quay, { amount: 0.9, tint: 0.12, grime: [0.55, 0.55, 0.5], top: 0.2 });
+  weather(m.paving, { amount: 0.5, tint: 0.14, grime: [0.72, 0.7, 0.66], streak: 0, under: 0, base: 0 });
+  weather(m.road, { amount: 0.4, tint: 0.16, grime: [0.8, 0.8, 0.8], streak: 0, under: 0, base: 0 });
+  weather(m.asphalt, { amount: 0.4, tint: 0.16, grime: [0.8, 0.8, 0.8], streak: 0, under: 0, base: 0 });
+  weather(m.sett, { amount: 0.4, tint: 0.12, streak: 0, under: 0, base: 0 });
+  weather(m.grass, { amount: 0.0, tint: 0.3, streak: 0, under: 0, top: 0, base: 0 });
+  weather(m.tree, { amount: 0.0, tint: 0.35, streak: 0, under: 0, top: 0, base: 0 });
+  weather(m.cityRoof, { amount: 0.4, tint: 0.2, grime: [0.75, 0.72, 0.7], under: 0, base: 0 });
+  weather(m.cityTile, { amount: 0.4, tint: 0.2, grime: [0.7, 0.68, 0.65], under: 0, base: 0 });
+  weather(m.hill, { amount: 0.0, tint: 0.35, streak: 0, under: 0, top: 0, base: 0 });
+  for (const k of ['asphalt', 'road', 'paving', 'quay', 'sett', 'grass']) nightGround(m[k], k === 'quay' ? 4 : 0);
   for (const [k, v] of Object.entries(m)) if (v && v.isMaterial) v.name = k;
   m.textures = { ash, fine, roof, domeT, brk, zs, pave, quay, grass, asph, city };
   return m;
