@@ -368,6 +368,9 @@ function buildUI() {
   bar.querySelectorAll('[data-view]').forEach(b => b.onclick = () => setView(b.dataset.view));
   const orbit = document.getElementById('orbit');
   if (orbit) orbit.onclick = () => { autoOrbit = !autoOrbit; orbit.classList.toggle('on', autoOrbit); };
+  // inside a sandboxed frame (e.g. a hosted artifact) downloads are refused: hide those buttons
+  let framed = false; try { framed = window.self !== window.top; } catch (e) { framed = true; }
+  if (framed) for (const id of ['shot', 'glb']) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
   const shot = document.getElementById('shot');
   if (shot) shot.onclick = async () => { shot.textContent = 'Rendering…'; await new Promise(r => setTimeout(r, 30)); await screenshot(); shot.textContent = '4K still'; };
   const glb = document.getElementById('glb');
