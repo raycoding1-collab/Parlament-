@@ -1,0 +1,24 @@
+{
+  "name": "parlament-",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raycoding1-collab/Parlament-.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/raycoding1-collab/Parlament-/issues"
+  },
+  "homepage": "https://github.com/raycoding1-collab/Parlament-#readme",
+  "dependencies": {
+    "esbuild": "^0.28.2",
+    "three": "^0.187.0"
+  }
+}
