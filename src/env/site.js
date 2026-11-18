@@ -79,8 +79,9 @@ export function makeFlag(mats, U) {
   const p = geo.attributes.position;
   for (let i = 0; i < p.count; i++) {
     const y = p.getY(i);
-    const c = y > h / 6 ? [0.78, 0.06, 0.16] : y > -h / 6 ? [0.95, 0.95, 0.93] : [0.18, 0.49, 0.2];
-    cols.push(...c);
+    const c = y > h / 6 ? 0xce2939 : y > -h / 6 ? 0xf4f4f0 : 0x477050; // Hungarian red, white, green (sRGB)
+    const col = new THREE.Color(c);
+    cols.push(col.r, col.g, col.b);
   }
   geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, side: THREE.DoubleSide });

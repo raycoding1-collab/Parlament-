@@ -214,7 +214,7 @@ export function grass(size = 512, world = 6, seed = 31) {
     const n = fbm(noise, u, v, 8, 5), s = noise(u * 256, v * 256, 256);
     const L = 0.75 + (n - 0.5) * 0.6 + (s - 0.5) * 0.3;
     const i = (y * size + x) * 4;
-    col[i] = clamp01(0.16 * L) * 255; col[i + 1] = clamp01(0.30 * L) * 255; col[i + 2] = clamp01(0.10 * L) * 255; col[i + 3] = 255;
+    col[i] = clamp01(0.20 * L + (n - 0.5) * 0.06) * 255; col[i + 1] = clamp01(0.34 * L) * 255; col[i + 2] = clamp01(0.12 * L) * 255; col[i + 3] = 255;
   }
   return { map: toTexture(col, size, true, world) };
 }
