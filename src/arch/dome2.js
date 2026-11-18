@@ -1,5 +1,5 @@
 // The dome, fitted to the measured silhouette of the long-lens Danube photograph
-// (ref/SPEC.md): 16-sided drum Ø ≈ 28 m with tracery windows (34.1–41.5 m),
+// (ref/SPEC.md): 16-sided drum Ø ≈ 28 m with tracery windows (30.4–41.5 m),
 // quatrefoil oculi (44.2–47.0), a small-arch gallery (48.5–50.9) and balustrade
 // (52.4); buttress pinnacles round the shell; maroon slate shell 53.6 → 72.6 m
 // with 16 dark ribs; lantern 72.6 → 77.7; spire to 96.0 m.
@@ -11,7 +11,7 @@ import { pinnacle, wimperg, finial, parapetPanel, corbelTable, crocket } from '.
 const V2 = (x, y) => new THREE.Vector2(x, y);
 const rect = (x0, y0, x1, y1) => [V2(x0, y0), V2(x1, y0), V2(x1, y1), V2(x0, y1)];
 const N = 16;
-export const DOME2 = { cz: 7.8, base: 28.0, lower: 33.0, R: 14.2, top: 52.4 };
+export const DOME2 = { cz: 7.8, base: 27.4, lower: 29.4, R: 14.2, top: 52.4 };
 
 /** Measured shell profile [y, circumradius]. */
 const PROFILE = [
@@ -41,15 +41,18 @@ export function buildDome2(kit) {
   // ---- upper drum face
   kit.def('D2_face', () => {
     const g = { stone: [], carve: [], glass: [], dark: [] };
-    const w = 2.6, y0 = 34.1, sy = 39.6, k = 0.85;
+    const w = 2.6, y0 = 30.4, sy = 39.6, k = 0.85; // S3: lights run down to just above the risalit gables
     const ol = lancetOutline(w, y0, sy, k, 16);
     const oc = circlePts(0, 45.6, 1.4, 28);
     const gal = [-1, 0, 1].map(i => { const pts = [V2(i * 1.25 - 0.42, 48.5)]; for (let s = 0; s <= 8; s++) { const a = Math.PI - s / 8 * Math.PI; pts.push(V2(i * 1.25 + Math.cos(a) * 0.42, 50.48 + Math.sin(a) * 0.42)); } pts.push(V2(i * 1.25 + 0.42, 48.5)); return pts; });
     g.stone.push(extrude(shape(rect(-fw / 2, lower, fw / 2, top - 1.4), [ol, oc, ...gal]), 1.0, 0));
-    const t = tracery(w, y0, sy, k, { lights: 2, oculus: true, transom: 37.0, recess: 0.3 });
+    const t = tracery(w, y0, sy, k, { lights: 2, oculus: true, transom: 35.0, recess: 0.3 });
     g.carve.push(...t.carve); g.glass.push(...t.glass);
     for (const s of [-1, 1]) g.carve.push(tr(prism(8, 0.1, 0.1, y0, sy), M(s * (w / 2 + 0.12), 0, 0.06)));
-    g.carve.push(extrude(shape(oc, [foilPts(0, 45.6, 1.15, 4, 32)]), 0.14, -0.15));
+    // eight-petalled rose (S3 close-up): plate with eight lobes, small hub
+    const petals = Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4; return circlePts(Math.cos(a) * 0.86, 45.6 + Math.sin(a) * 0.86, 0.34, 16).reverse(); });
+    g.carve.push(extrude(shape(oc, [...petals, circlePts(0, 45.6, 0.36, 16).reverse()]), 0.14, -0.15));
+    g.carve.push(extrude(shape(circlePts(0, 45.6, 0.24, 12)), 0.2, -0.05));
     g.carve.push(extrude(shape(circlePts(0, 45.6, 1.62, 28), [oc]), 0.12, 0.1));
     g.glass.push(flat(shape(oc), -0.4));
     gal.forEach(p => g.dark.push(flat(shape(p), -0.45)));
@@ -64,10 +67,10 @@ export function buildDome2(kit) {
   kit.def('D2_butt', () => {
     const g = { stone: [], carve: [] };
     const H = top - lower;
-    g.stone.push(boxMin(-0.5, lower, -0.6, 1.0, H * 0.55, 2.6));
-    g.stone.push(boxMin(-0.45, lower + H * 0.55, -0.6, 0.9, H * 0.45 + 0.8, 1.9));
-    g.carve.push(tr(box(1.05, 0.25, 0.7), M(0, lower + H * 0.55, 1.75, 0, 1, 1, 1, -0.6)));
-    pinnacle(0.95, 57.2 - top - 0.8).carve.forEach(x => g.carve.push(tr(x, M(0, top + 0.8, 0.5))));
+    g.stone.push(boxMin(-0.4, lower, -0.6, 0.8, H * 0.55, 2.0));
+    g.stone.push(boxMin(-0.36, lower + H * 0.55, -0.6, 0.72, H * 0.45 + 0.8, 1.5));
+    g.carve.push(tr(box(0.85, 0.22, 0.55), M(0, lower + H * 0.55, 1.4, 0, 1, 1, 1, -0.6)));
+    pinnacle(0.78, 57.2 - top - 0.8).carve.forEach(x => g.carve.push(tr(x, M(0, top + 0.8, 0.4))));
     return g;
   });
   for (let k = 0; k < N; k++) {

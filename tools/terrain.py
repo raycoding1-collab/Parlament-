@@ -28,6 +28,11 @@ def polys_only(g):
         if x.geom_type == 'Polygon': ps.append(x)
         elif x.geom_type == 'MultiPolygon': ps += list(x.geoms)
     return MultiPolygon(ps)
+# river-front stairs of the Parliament: pits cut into the terrace in front of the
+# middle of each arcade wing (S3 elevation), descending to the quay road
+STAIRS = [(-56.7, 55.73), (56.7, 56.82)]  # (x centre, retaining-wall z at that x)
+pits = unary_union([box(cx - 7.6, zr - 9.4, cx + 7.6, zr + 2.0) for cx, zr in STAIRS])
+strip = unary_union([strip, pits.difference(river)])
 strip = polys_only(strip)
 land = polys_only(area.difference(river).difference(strip))
 def tri(geom, y):
@@ -72,6 +77,7 @@ site['terrain'] = {
     'quay': tri(strip, -3.6),
     'riverWalls': lines(river),
     'stripEdges': lines(strip),
+    'stairs': [[cx, round(zr - 9.4, 2), round(zr, 2)] for cx, zr in STAIRS],
 }
 json.dump(site, open('src/data/site.json', 'w'), separators=(',', ':'))
 print('land tris', len(site['terrain']['land']['i']) // 3, 'quay tris', len(site['terrain']['quay']['i']) // 3, 'walls', len(site['terrain']['riverWalls']))

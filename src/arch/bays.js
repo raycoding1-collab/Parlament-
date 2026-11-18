@@ -118,23 +118,38 @@ export function defineBays(kit) {
     return g;
   });
 
-  // ---------------- piers of the river arcade (with ruler statue & canopy) and their pinnacles
-  const riverPier = (pw, tall) => () => {
+  // ---------------- river arcade supports (S3 close-up): free-standing round columns with
+  // cushion capitals carry the round arches; above them a spandrel wall and a slim pilaster
+  // rising through the parapet into a small pinnacle. Accent bays keep a solid pier.
+  const SPRING = RIV.CROWN - RIV.CLEAR / 2;
+  const riverPier = (pw, accent) => () => {
     const g = { stone: [], carve: [] };
-    g.stone.push(boxMin(-pw / 2 - 0.1, 0, -0.1, pw + 0.2, RIV.FLOOR, 1.35));
-    g.stone.push(boxMin(-pw / 2, RIV.FLOOR, -0.1, pw, RIV.CORNICE - RIV.FLOOR, 0.95));
-    // engaged column on the arcade pier with capital at the springing
-    g.carve.push(tr(lathe([[0.2, 0], [0.26, 0.1], [0.2, 0.3]], 10), M(0, RIV.FLOOR, 1.0)));
-    g.carve.push(tr(prism(10, 0.17, 0.17, RIV.FLOOR + 0.3, RIV.CROWN - RIV.CLEAR / 2 - 0.4), M(0, 0, 1.0)));
-    g.carve.push(tr(lathe([[0.17, 0], [0.28, 0.2], [0.34, 0.4], [0.34, 0.5]], 10), M(0, RIV.CROWN - RIV.CLEAR / 2 - 0.45, 1.0)));
-    // statue corbel and canopy at the main floor
-    g.carve.push(tr(lathe([[0.05, -0.8], [0.26, -0.5], [0.42, -0.2], [0.44, 0]], 6, { phase: 0 }), M(0, RIV.BAL0 + 0.1, 1.1)));
-    g.carve.push(...canopy(0.95).carve.map(x => tr(x, M(0, RIV.BAL0 + 2.75, 1.1))));
-    // weathered set-off and the pinnacle above the parapet
-    g.carve.push(tr(box(pw + 0.06, 0.25, 0.6), M(0, RIV.CORNICE - 0.1, 0.85, 0, 1, 1, 1, -0.5)));
-    g.stone.push(boxMin(-pw / 2 + 0.05, RIV.CORNICE, -0.1, pw - 0.1, RIV.PARAPET - RIV.CORNICE + 0.4, 0.7));
-    const ph = tall ? 26.8 - RIV.PARAPET : 24.6 - RIV.PARAPET;
-    pinnacle(Math.min(pw, 1.05), ph + 0.6, { lite: !tall }).carve.forEach(x => g.carve.push(tr(x, M(0, RIV.PARAPET + 0.1, 0.3))));
+    g.stone.push(boxMin(-pw / 2 - 0.1, 0, -1.1, pw + 0.2, RIV.FLOOR, 1.35));
+    if (!accent) {
+      const cz = -0.42;
+      g.carve.push(tr(boxMin(-0.42, 0, -0.42, 0.84, 0.3, 0.84), M(0, RIV.FLOOR, cz)));
+      g.carve.push(tr(lathe([[0.36, 0], [0.38, 0.08], [0.32, 0.18], [0.3, 0.26], [0.29, 0.34]], 16, { flatShade: false }), M(0, RIV.FLOOR + 0.3, cz)));
+      g.carve.push(tr(lathe([[0.29, 0], [0.26, (SPRING - RIV.FLOOR - 1.2) * 0.5], [0.25, SPRING - RIV.FLOOR - 1.2]], 18, { flatShade: false }), M(0, RIV.FLOOR + 0.64, cz)));
+      // cushion capital with necking and abacus
+      g.carve.push(tr(lathe([[0.27, 0], [0.3, 0.06], [0.27, 0.12], [0.33, 0.2], [0.44, 0.38], [0.5, 0.5], [0.01, 0.5]], 16, { flatShade: false }), M(0, SPRING - 0.56, cz)));
+      g.carve.push(tr(boxMin(-0.5, 0, -0.5, 1.0, 0.16, 1.0), M(0, SPRING - 0.06, cz)));
+    } else {
+      g.stone.push(boxMin(-pw / 2, RIV.FLOOR, -1.0, pw, SPRING - RIV.FLOOR, 1.35));
+      for (const s of [-1, 1]) g.carve.push(tr(prism(10, 0.13, 0.13, RIV.FLOOR + 0.3, SPRING - 0.3), M(s * (pw / 2 - 0.18), 0, 0.38)));
+    }
+    // spandrel wall between the arches
+    g.stone.push(boxMin(-pw / 2 - 0.05, SPRING, -1.0, pw + 0.1, RIV.CORNICE - SPRING, 1.02));
+    // statue corbel and canopy in the spandrel (regular bays)
+    if (!accent) {
+      g.carve.push(tr(lathe([[0.04, -0.55], [0.2, -0.35], [0.32, -0.12], [0.34, 0]], 6, { phase: 0 }), M(0, SPRING + 0.4, 0.22)));
+      g.carve.push(...canopy(0.72).carve.map(x => tr(x, M(0, SPRING + 2.45, 0.22, 0, 0.8, 0.8, 0.8))));
+    }
+    // slim pilaster to the parapet, then a small pinnacle
+    const pp = accent ? 0.62 : 0.4;
+    g.stone.push(boxMin(-pp / 2, SPRING + 0.4, 0.0, pp, RIV.PARAPET + 0.25 - SPRING - 0.4, accent ? 0.3 : 0.16));
+    g.carve.push(tr(box(pp + 0.1, 0.2, 0.32), M(0, RIV.CORNICE - 0.1, 0.12, 0, 1, 1, 1, -0.5)));
+    const ph = accent ? 27.0 - RIV.PARAPET : 25.0 - RIV.PARAPET;
+    pinnacle(accent ? 0.85 : 0.5, ph, { lite: !accent }).carve.forEach(x => g.carve.push(tr(x, M(0, RIV.PARAPET + 0.2, 0.1))));
     return g;
   };
   kit.def('RP', riverPier(RIV.PIER, false));
@@ -162,7 +177,8 @@ export function defineBays(kit) {
     g.carve.push(moulding(-P / 2, P / 2, 12.0, STR));
     // loggia: semicircular arch on colonnettes, balustrade, deep back wall with tall windows
     const ol = roundOutline(A, 12.6, LOG.CROWN, 0, 20);
-    g.stone.push(wall(P, 12.3, LOG.CORNICE, [ol], 0.8));
+    const A0 = LOG.CROWN + 0.7; // cornice directly over the arch crowns (S3)
+    g.stone.push(wall(P, 12.3, A0, [ol], 0.8));
     g.carve.push(sweepXY(archPts(A, LOG.SPRING, 0.5, 22).reverse(), [[-0.05, 0.02], [0.05, 0.1], [0.13, 0.1], [0.2, 0]]));
     g.carve.push(...parapetPanel(A, 1.1, 0.2, 4, 16).carve.map(x => tr(x, M(0, 12.6, 0.05))));
     g.stone.push(boxMin(-P / 2, 12.5, -4.3, P, 0.12, 4.3));
@@ -170,13 +186,30 @@ export function defineBays(kit) {
     g.shade.push(tr(wall(P, 12.6, LOG.CROWN, [bw], 0.4), M(0, 0, -4.2)));
     g.glass.push(tr(flat(shape(bw)), M(0, 0, -4.5)));
     g.shade.push(boxMin(-P / 2, LOG.CROWN - 0.3, -4.3, P, 0.3, 3.6));
-    // frieze, cornice
-    g.carve.push(moulding(-P / 2, P / 2, LOG.CORNICE - 0.4, CORN));
-    // crocketed gable with trefoil oculus over each bay
-    const gh = LOG.GABLE - LOG.CORNICE;
-    g.stone.push(tr(extrude(shape([V2(-P / 2 + 0.25, 0), V2(P / 2 - 0.25, 0), V2(0, gh)], [foilPts(0, gh * 0.42, 0.6, 3, 30, Math.PI / 2)]), 0.4, 0.2), M(0, LOG.CORNICE, 0)));
-    g.dark.push(tr(flat(shape(foilPts(0, gh * 0.42, 0.6, 3, 30, Math.PI / 2))), M(0, LOG.CORNICE, -0.2)));
-    wimperg(P - 0.3, gh + 0.15, 0.12, { crockets: 4, cs: 0.24, finialH: 0.9, blind: false }).carve.forEach(x => g.carve.push(tr(x, M(0, LOG.CORNICE - 0.05, 0.25))));
+    g.carve.push(moulding(-P / 2, P / 2, A0 - 0.55, CORN));
+    // gabled attic screen: five-light round-headed arcade (centre light open,
+    // the others blind) under a steep crocketed gable with a quatrefoil (S3)
+    const sw = P - 0.42, S1 = A0 + 3.2, AP = LOG.GABLE, gh = AP - S1;
+    const lights = [-2, -1, 0, 1, 2].map(i => roundOutline(0.42, A0 + 0.6, A0 + 2.55, i * 0.78, 10));
+    const qf = foilPts(0, S1 + gh * 0.36, 0.48, 4, 32, Math.PI / 4);
+    const screen = [V2(-sw / 2, A0), V2(sw / 2, A0), V2(sw / 2, S1), V2(0, AP), V2(-sw / 2, S1)];
+    g.stone.push(extrude(shape(screen, [...lights, qf]), 0.5, 0.3));
+    lights.forEach((o, i) => (i === 2 ? g.dark : g.shade).push(flat(shape(o), i === 2 ? -0.3 : 0.12)));
+    g.dark.push(flat(shape(qf), 0.0));
+    g.carve.push(extrude(shape(circlePts(0, S1 + gh * 0.36, 0.62, 24), [circlePts(0, S1 + gh * 0.36, 0.5, 24)]), 0.08, 0.38));
+    for (let i = -2; i <= 1; i++) g.carve.push(tr(prism(8, 0.07, 0.07, A0 + 0.6, A0 + 1.9), M(i * 0.78 + 0.39, 0, 0.36)));
+    g.carve.push(boxMin(-sw / 2, A0 + 0.42, 0.25, sw, 0.14, 0.16));
+    g.carve.push(boxMin(-sw / 2 - 0.06, S1 - 0.16, 0.24, sw + 0.12, 0.2, 0.18));
+    // raking copings, crockets and finial
+    const len = Math.hypot(sw / 2, gh), ang = Math.atan2(gh, sw / 2);
+    for (const sg of [-1, 1]) {
+      g.carve.push(tr(box(len + 0.1, 0.16, 0.66), M(sg * sw / 4, S1 + gh / 2 + 0.05, 0.05, 0, 1, 1, 1, 0, -sg * ang)));
+      for (let k = 1; k <= 3; k++) {
+        const t = k / 4;
+        for (const c of crocket(0.24)) g.carve.push(tr(c, M(sg * (sw / 2) * (1 - t), S1 + gh * t + 0.14, 0.15, 0, 1, 1, 1, -Math.PI / 2 + 0.2)));
+      }
+    }
+    finial(0.95).carve.forEach(x => g.carve.push(tr(x, M(0, AP - 0.05, 0.05))));
     return g;
   });
   kit.def('LC', () => {
@@ -188,8 +221,8 @@ export function defineBays(kit) {
       g.carve.push(tr(prism(10, 0.12, 0.12, 12.6, LOG.SPRING - 0.4), M(s * 0.16, 0, 0.35)));
       g.carve.push(tr(lathe([[0.12, 0], [0.2, 0.2], [0.24, 0.4]], 8), M(s * 0.16, LOG.SPRING - 0.45, 0.35)));
     }
-    g.stone.push(boxMin(-cw / 2, LOG.SPRING - 0.05, -0.1, cw, LOG.CORNICE - LOG.SPRING + 0.05, 0.8));
-    pinnacle(0.7, 31.0 - LOG.CORNICE - 0.4, {}).carve.forEach(x => g.carve.push(tr(x, M(0, LOG.CORNICE + 0.3, 0.3))));
+    g.stone.push(boxMin(-cw / 2, LOG.SPRING - 0.05, -0.1, cw, LOG.CROWN + 0.9 - LOG.SPRING + 0.05, 0.8));
+    pinnacle(0.62, 5.0, {}).carve.forEach(x => g.carve.push(tr(x, M(0, LOG.CROWN + 0.9, 0.3))));
     return g;
   });
 
@@ -200,11 +233,11 @@ export function defineBays(kit) {
     g.stone.push(wall(C, 0, 2.6, [rect(-0.5, 0.8, 0.5, 1.9)], 1.0));
     g.dark.push(flat(shape(rect(-0.5, 0.8, 0.5, 1.9)), -0.5));
     g.carve.push(moulding(-C / 2, C / 2, 2.4, [[0, 0], [0, 0.2], [0.15, 0.25], [0.25, 0]]));
-    // ground floor: paired pointed lights
-    const gl = [lancetOutline(0.85, 4.1, 6.8, 1, 10, -0.6), lancetOutline(0.85, 4.1, 6.8, 1, 10, 0.6)];
+    // ground floor: paired round-headed lights under a round hood (S3 close-up)
+    const gl = [roundOutline(0.85, 4.1, 7.5, -0.6), roundOutline(0.85, 4.1, 7.5, 0.6)];
     g.stone.push(wall(C, 2.6, 8.4, gl));
     gl.forEach(o => g.glass.push(flat(shape(o), -0.3)));
-    g.carve.push(...hood(2.2, 6.6));
+    g.carve.push(sweepXY(archPts(2.3, 6.6, 0.5, 16).reverse(), [[0, 0], [0.05, 0.08], [0.1, 0.11], [0.15, 0.07], [0.17, 0]]));
     g.carve.push(moulding(-C / 2, C / 2, 8.4, STR));
     // mezzanine: paired rectangular windows
     const ml = [rect(-1.05, 9.3, -0.15, 11.4), rect(0.15, 9.3, 1.05, 11.4)];
@@ -222,9 +255,13 @@ export function defineBays(kit) {
     g.carve.push(...corbelTable(C, END.CORNICE - 0.5, 0.3));
     g.carve.push(moulding(-C / 2, C / 2, END.CORNICE - 0.1, CORN));
     g.stone.push(boxMin(-C / 2, END.CORNICE - 0.5, -0.7, C, 0.9, 0.7));
-    // the tall pierced parapet of the end blocks (two tiers of tracery)
-    g.carve.push(...parapetPanel(C, 1.45, 0.24, 3, 20).carve.map(x => tr(x, M(0, END.CORNICE + 0.3, 0.15))));
-    g.carve.push(...parapetPanel(C, 1.3, 0.24, 4, 16).carve.map(x => tr(x, M(0, END.CORNICE + 1.75, 0.15))));
+    // the tall arcaded parapet of the end blocks: round-headed slots between colonnettes
+    {
+      const n = 6, py0 = END.CORNICE + 0.5, py1 = END.PARAPET - 0.3, slots = [];
+      for (let i = 0; i < n; i++) slots.push(roundOutline(0.32, py0 + 0.35, py1 - 0.35, -C / 2 + C / n * (i + 0.5), 8));
+      g.carve.push(extrude(shape(rect(-C / 2, py0, C / 2, py1), slots), 0.26, 0.15));
+      g.carve.push(moulding(-C / 2, C / 2, py1, [[0, 0.15], [0.12, 0.2], [0.3, 0.12], [0.3, -0.2], [0, -0.2]]));
+    }
     return g;
   });
   kit.def('EP', () => {

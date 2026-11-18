@@ -169,16 +169,93 @@ function geo(pos, uv) {
   return uv ? clean(g, { uv: 'keep' }) : clean(g);
 }
 
+
+// ---------------------------------------------------------------- river-front terrace
+function defBaluster(kit) {
+  if (kit.has('baluster')) return;
+  // vase baluster 0.62 m: square plinth, bulb, neck, ring, square cap
+  kit.def('baluster', () => ({ carve: [
+    box(0.2, 0.08, 0.2, 0, 0.04, 0),
+    lathe([[0.075, 0.08], [0.085, 0.11], [0.062, 0.14], [0.09, 0.22], [0.098, 0.3], [0.08, 0.38], [0.05, 0.45], [0.042, 0.5], [0.06, 0.52], [0.06, 0.54]], 6, { phase: Math.PI / 6 }),
+    box(0.18, 0.08, 0.18, 0, 0.58, 0),
+  ] }));
+}
+/** One straight piece of the embankment: ashlar wall with plinth, cornice and
+ *  pilaster strips, balustrade with pedestals on top. Pit back edges get no rail. */
+function terraceSegment(kit, a, b, stairs) {
+  const L = a.distanceTo(b); if (L < 0.2) return;
+  const ry = Math.atan2(-(b.y - a.y), b.x - a.x);
+  const mid = a.clone().add(b).multiplyScalar(0.5);
+  const along = (t, y, sx, sy, sz, oy = 0) => box(sx, sy, sz).applyMatrix4(M(a.x + (b.x - a.x) * t, y + oy, a.y + (b.y - a.y) * t, ry));
+  const back = stairs.some(([cx, zb]) => Math.abs(a.y - zb) < 0.1 && Math.abs(b.y - zb) < 0.1 && Math.abs(mid.x - cx) < 8);
+  // wall face, plinth and cornice (thickness straddles the line)
+  kit.add('stone', along(0.5, LEVEL.quay - 0.2, L + 0.9, 3.82, 0.9, 1.91));
+  if (back) return;
+  kit.add('stone', along(0.5, LEVEL.quay, L + 1.2, 0.5, 1.2, 0.25));
+  kit.add('carve', along(0.5, -0.28, L + 1.14, 0.18, 1.14, 0.09));
+  kit.add('carve', along(0.5, -0.1, L + 1.26, 0.12, 1.26, 0.06));
+  // balustrade: base, rail
+  defBaluster(kit);
+  kit.add('stone', along(0.5, 0.02, L, 0.24, 0.62, 0.12));
+  kit.add('carve', along(0.5, 0.88, L, 0.16, 0.56, 0.08));
+  const nPed = Math.max(1, Math.round(L / 7.6));
+  for (let k = 0; k <= nPed; k++) {
+    const t = k / nPed;
+    kit.add('stone', along(t, 0.02, 0.62, 1.1, 0.7, 0.55));
+    kit.add('carve', along(t, 1.12, 0.74, 0.12, 0.82, 0.06));
+    kit.add('stone', along(t, LEVEL.quay + 0.5, 0.9, 3.1, 1.04, 1.55)); // pilaster strip under each pedestal
+  }
+  for (let k = 0; k < nPed; k++) {
+    const s0 = (k / nPed) * L + 0.42, s1 = ((k + 1) / nPed) * L - 0.42;
+    const n = Math.max(1, Math.floor((s1 - s0) / 0.3));
+    for (let j = 0; j < n; j++) {
+      const t = (s0 + (j + 0.5) * (s1 - s0) / n) / L;
+      kit.put('baluster', M(a.x + (b.x - a.x) * t, 0.26, a.y + (b.y - a.y) * t, ry));
+    }
+  }
+}
+/** Straight flight from the terrace down to the quay road, laid in its pit:
+ *  22 risers of 0.164 m on 0.42 m treads, granite with stone landings. */
+function riverStair(kit, [cx, zb, zr]) {
+  const W = 15.2, N = 22, rise = (0 - LEVEL.quay) / N, run = (zr - zb) / N;
+  for (let i = 0; i < N; i++) {
+    const h = (N - i) * rise;
+    kit.add('stone', boxMin(cx - W / 2, LEVEL.quay, zb + i * run, W, h, run + 0.02));
+    kit.add('carve', boxMin(cx - W / 2, LEVEL.quay + h - 0.03, zb + i * run + run - 0.06, W, 0.05, 0.1)); // nosing
+  }
+  // landing in front, flush with the wall line, and lamps on the cheek pedestals
+  kit.add('stone', boxMin(cx - W / 2, LEVEL.quay, zr - 0.05, W, 0.05, 1.6));
+}
+
 export function buildSite2(kit, mats, U) {
   const S = SITE_DATA, T = S.terrain, R = rng(7);
   // ---------- terrain
   kit.add('paving', triMesh(T.land));   // pavements & squares: light stone; roads are asphalt ribbons on top
   kit.add('asphalt', triMesh(T.quay));
   for (const l of T.riverWalls) kit.add('quay', wallStrip(l, () => LEVEL.water - 3, (p) => (p.y < 230 ? LEVEL.quay : 0)));
+  // retaining walls: the Parliament's river front is a dressed-limestone embankment
+  // with a balustrade (S3 elevation); elsewhere plain granite with a solid parapet
+  const front = (p) => Math.abs(p.x) < 175 && p.y > 40 && p.y < 75;
   for (const l of T.retain) {
-    kit.add('quay', wallStrip(l, () => LEVEL.quay - 0.2, () => 0.02));
-    kit.add('quay', wallStrip(l, () => 0, () => 1.05)); // parapet
+    const P = pts2(l);
+    let run = [];
+    const flush = () => {
+      if (run.length > 1) {
+        const f = run.flatMap(p => [p.x, p.y]);
+        kit.add('quay', wallStrip(f, () => LEVEL.quay - 0.2, () => 0.02));
+        kit.add('quay', wallStrip(f, () => 0, () => 1.05));
+      }
+      run = [];
+    };
+    for (let i = 0; i < P.length - 1; i++) {
+      const a = P[i], b = P[i + 1];
+      if (front(a) && front(b)) { flush(); terraceSegment(kit, a, b, T.stairs || []); continue; }
+      if (!run.length) run.push(a);
+      run.push(b);
+    }
+    flush();
   }
+  for (const st of T.stairs || []) riverStair(kit, st);
   // stone parapet along the Pest river edge
   for (const l of T.riverWalls) {
     const P = pts2(l); const seg = [];
@@ -231,6 +308,21 @@ export function buildSite2(kit, mats, U) {
     }
   }
   for (let x = -170; x <= 170; x += 20) putLamp(M(x, 0, -76));
+  // cast-iron bollards along the river edge of the quay road
+  if (!kit.has('bollard')) kit.def('bollard', () => ({ iron: [lathe([[0.12, 0], [0.12, 0.08], [0.09, 0.12], [0.08, 0.55], [0.1, 0.6], [0.1, 0.66], [0.06, 0.74], [0.001, 0.76]], 8)] }));
+  for (const l of T.riverWalls) {
+    const P = pts2(l); let acc = 0;
+    for (let i = 0; i < P.length - 1; i++) {
+      const a = P[i], b = P[i + 1], L = a.distanceTo(b);
+      if (a.y > 230 || Math.abs(a.x) > 420 || Math.abs(b.x) > 420) { acc = 0; continue; }
+      const nx = -(b.y - a.y) / L, nz = (b.x - a.x) / L, sg = nz < 0 ? 1 : -1;
+      for (let t = (4 - acc % 4) % 4; t < L; t += 4) {
+        const p = a.clone().lerp(b, t / L);
+        kit.put('bollard', M(p.x + nx * 0.7 * sg, LEVEL.quay, p.y + nz * 0.7 * sg));
+      }
+      acc += L;
+    }
+  }
   // ---------- buildings
   const out = { city0: [], city1: [], city2: [], city3: [], city4: [], cityRoof: [], cityTile: [] };
   for (const b of S.buildings) cityBuilding(b, R, out);

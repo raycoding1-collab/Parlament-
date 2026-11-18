@@ -173,3 +173,22 @@ export function gableDormer(w = 2.0, h = 3.2) {
 export function chimney(w = 1.0, d = 2.2, h = 2.4) {
   return { stone: [boxMin(-w / 2, 0, -d / 2, w, h, d)], carve: [boxMin(-w / 2 - 0.08, h, -d / 2 - 0.08, w + 0.16, 0.18, d + 0.16), boxMin(-w / 2 - 0.12, h * 0.6, -d / 2 - 0.12, w + 0.24, 0.12, d + 0.24)] };
 }
+
+/** Big slate-faced dormer gable of the river roofs (S3 close-up): dark slate face, stone copings,
+ *  a small lancet light and finial; front at z = 0, base y = 0. */
+export function slateDormer(w = 3.8, h = 5.0) {
+  const g = { roof: [], carve: [], dark: [], stone: [] };
+  const D = 4.5;
+  const ol = lancetOutline(0.7, 0.6, 1.9, 1, 8);
+  g.roof.push(extrude(shape([V2(-w / 2, -0.8), V2(w / 2, -0.8), V2(w / 2, 0.2), V2(0, h), V2(-w / 2, 0.2)], [ol]), 0.14, 0.0));
+  g.dark.push(flat(shape(ol), -0.1));
+  g.carve.push(extrude(shape(lancetOutline(0.95, 0.5, 1.9, 1, 8), [ol]), 0.1, 0.06));
+  const len = Math.hypot(w / 2, h - 0.2), ang = Math.atan2(h - 0.2, w / 2);
+  for (const s of [-1, 1]) {
+    g.roof.push(tr(box(len + 0.2, 0.1, D), M(s * w / 4, (h + 0.2) / 2, -D / 2, 0, 1, 1, 1, 0, -s * ang)));
+    g.carve.push(tr(box(len + 0.1, 0.14, 0.24), M(s * w / 4, (h + 0.2) / 2 + 0.06, 0.04, 0, 1, 1, 1, 0, -s * ang)));
+    g.roof.push(boxMin(s > 0 ? w / 2 - 0.12 : -w / 2, -0.8, -D, 0.12, 1.0, D));
+  }
+  g.carve.push(...finial(0.8).carve.map(x => tr(x, M(0, h - 0.05, 0.04))));
+  return g;
+}

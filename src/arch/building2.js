@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { M, tr, box, boxMin, prism, pyramid, lathe, extrude, flat, shape, lancetOutline, archPts, foilPts, circlePts, moulding, clean, rng, sweepXY } from '../geo/util.js';
 import { defineBays, RIV, END, LOG } from './bays.js';
 import { tracery } from './modules.js';
-import { flatTopRoof, gableDormer, chimney, dressRoof } from './roofs.js';
+import { flatTopRoof, gableDormer, slateDormer, chimney, dressRoof } from './roofs.js';
 import { frontTower, chamberTurret, endTurret } from './towers2.js';
 import { pinnacle, wimperg, finial, parapetPanel, corbelTable, crocket, statue, cresting } from './ornament.js';
 import { buildDome2 } from './dome2.js';
@@ -71,7 +71,7 @@ export function buildBuilding2(kit) {
   kit.def('turretEnd', () => endTurret());
   kit.def('turretCh', () => chamberTurret(20.0));
   kit.def('towerFront', () => frontTower());
-  kit.def('dormerG', () => gableDormer(2.2, 4.2));
+  kit.def('dormerG', () => slateDormer(3.7, 5.1));
 
   for (const sg of [1, -1]) {
     const X = (x) => x * sg;
@@ -95,7 +95,21 @@ export function buildBuilding2(kit) {
       const px = (arches[i] + arches[i + 1]) / 2;
       const isA = accent.has(i) || accent.has(i + 1);
       kit.put(isA ? 'RPX' : 'RP', M(X(px), 0, 31.0));
-      if (!isA) kit.put('statue' + (i % 4), M(X(px), RIV.BAL0 + 0.15, 31.0 + 1.1));
+      if (!isA) kit.put('statue' + (i % 4), M(X(px), RIV.CROWN - RIV.CLEAR / 2 + 0.42, 31.0 + 0.22, 0, 0.8, 0.8, 0.8));
+    }
+    // flight of steps up to the arcade floor along the whole wing (S3), stone cheeks
+    {
+      const xa = arches[0] - RIV.CLEAR / 2 - 0.3, xb = arches[12] + RIV.CLEAR / 2 + 0.3;
+      const a = Math.min(X(xa), X(xb)), b = Math.max(X(xa), X(xb));
+      const N = 16, rise = RIV.FLOOR / N, run = 0.34;
+      for (let i = 0; i < N; i++) {
+        kit.add('stone', boxMin(a, 0, 31.0, b - a, RIV.FLOOR - i * rise, (i + 1) * run));
+        kit.add('carve', boxMin(a, RIV.FLOOR - i * rise - 0.04, 31.0 + (i + 1) * run - 0.05, b - a, 0.05, 0.08));
+      }
+      for (const x of [a - 0.9, b]) {
+        kit.add('stone', boxMin(x, 0, 31.0, 0.9, RIV.FLOOR + 0.25, N * run + 0.1));
+        kit.add('carve', boxMin(x - 0.06, RIV.FLOOR + 0.25, 30.95, 1.02, 0.14, N * run + 0.22));
+      }
     }
     // wide end piers of the wing (against the end block and against the tower)
     for (const [x0, x1] of [[-102.2, arches[0] - RIV.CLEAR / 2], [arches[12] + RIV.CLEAR / 2, -25.05]]) {
@@ -107,7 +121,7 @@ export function buildBuilding2(kit) {
     }
     box2(25.05, 102.2, 19.0, 31.0, 22.0);
     // gable dormers on the river roof, one per regular bay
-    arches.forEach((ax, i) => { if (!accent.has(i)) kit.put('dormerG', M(X(ax), 23.0, 29.6)); });
+    arches.forEach((ax, i) => { if (!accent.has(i)) kit.put('dormerG', M(X(ax), 22.35, 30.2)); });
 
     // ================= central risalit (x 0…17 per half) =================
     for (let i = 0; i < 4; i++) {
@@ -271,20 +285,24 @@ function chamberBlock(kit, cx, cz) {
       t.carve.forEach(x => g.carve.push(tr(x, M(c, 0, 0)))); t.glass.forEach(x => g.glass.push(tr(x, M(c, 0, 0))));
       for (const s of [-1, 1]) g.carve.push(tr(prism(8, 0.1, 0.1, 25.5, 28.6), M(c + s * 1.92, 0, 0.06)));
     });
-    // gallery of small arches under the eaves
-    const n = 13, holes = [];
-    for (let i = 0; i < n; i++) holes.push(lancetOutline(0.7, 31.2, 32.4, 0.55, 8, -W / 2 + W / n * (i + 0.5)));
-    g.carve.push(extrude(shape(rect(-W / 2, 31.0, W / 2, 33.0), holes), 0.12, 0.12));
+    // gallery storey: round-headed lights in groups of three over each great window
+    const holes = [];
+    for (const c of [-5.6, 0, 5.6]) for (const d of [-1.05, -0.35, 0.35, 1.05]) {
+      const x = c + d, pts = [V2(x - 0.24, 31.1)];
+      for (let i = 0; i <= 8; i++) { const t = Math.PI - i / 8 * Math.PI; pts.push(V2(x + Math.cos(t) * 0.24, 32.35 + Math.sin(t) * 0.24)); }
+      pts.push(V2(x + 0.24, 31.1)); holes.push(pts);
+    }
+    g.carve.push(extrude(shape(rect(-W / 2, 30.9, W / 2, 33.0), holes), 0.12, 0.12));
     holes.forEach(p => g.dark.push(flat(shape(p), -0.25)));
     g.carve.push(moulding(-W / 2, W / 2, 30.6, [[0, 0], [0.05, 0.15], [0.15, 0.2], [0.25, 0]]));
     g.carve.push(moulding(-W / 2, W / 2, 33.3, [[0, 0], [0, 0.3], [0.14, 0.44], [0.32, 0.55], [0.5, 0.48], [0.55, 0]]));
-    // crocketed gablets with trefoils along the parapet (6) and pinnacles between
-    for (let i = 0; i < 6; i++) {
-      const x = -W / 2 + W / 6 * (i + 0.5);
-      g.stone.push(tr(extrude(shape([V2(-1.25, 0), V2(1.25, 0), V2(0, 2.4)], [foilPts(0, 0.95, 0.42, 3, 24, Math.PI / 2)]), 0.3, 0.15), M(x, 33.8, 0)));
-      wimperg(2.6, 2.5, 0.1, { crockets: 2, cs: 0.18, finialH: 0.55, blind: false }).carve.forEach(c => g.carve.push(tr(c, M(x, 33.75, 0.2))));
-      if (i > 0) pinnacle(0.4, 2.8, { lite: true }).carve.forEach(c => g.carve.push(tr(c, M(x - W / 12, 33.8, 0.1))));
+    // three big crocketed gables with trefoils (one over each great window), pinnacles between
+    for (const c of [-5.6, 0, 5.6]) {
+      g.stone.push(tr(extrude(shape([V2(-2.5, 0), V2(2.5, 0), V2(0, 3.6)], [foilPts(0, 1.35, 0.62, 3, 28, Math.PI / 2)]), 0.32, 0.16), M(c, 33.8, 0)));
+      g.dark.push(tr(flat(shape(foilPts(0, 1.35, 0.62, 3, 28, Math.PI / 2))), M(c, 33.8, -0.17)));
+      wimperg(5.2, 3.7, 0.12, { crockets: 4, cs: 0.24, finialH: 0.8, blind: false }).carve.forEach(x => g.carve.push(tr(x, M(c, 33.75, 0.22))));
     }
+    for (const c of [-2.8, 2.8]) pinnacle(0.55, 4.4, { lite: true }).carve.forEach(x => g.carve.push(tr(x, M(c, 33.8, 0.1))));
     g.carve.push(...parapetPanel(W, 0.9, 0.2, 10, 16).carve.map(c => tr(c, M(0, 33.8, -0.2))));
     return g;
   });
@@ -297,5 +315,5 @@ function chamberBlock(kit, cx, cz) {
   // near-vertical pavilion roof with a broad flat copper top (S3: top ≈ 17 m wide)
   rangeRoof(kit, cx - h + 0.6, cx + h - 0.6, cz - h + 0.6, cz + h - 0.6, 33.7, 12.1, 2.6, 'x', ['hip', 'hip'], { chimneys: 0 });
   // flagpole on the Upper House (north) block
-  if (cx < 0) { kit.add('iron', prism(8, 0.12, 0.08, 45.8, 54), M(cx, 0, cz)); }
+  kit.add('iron', prism(8, 0.12, 0.07, 45.8, 55), M(cx, 0, cz));
 }

@@ -91,6 +91,8 @@ async function init() {
   envGroup.name = 'Budapest';
   scene.add(envGroup);
   flag = site.flag; scene.add(flag);
+  // national flags on the two chamber halls' flagpoles (S3)
+  for (const sx of [-1, 1]) { const f = flag.clone(); f.scale.setScalar(0.32); f.position.set(sx * 60.9 + 0.1, 53.4, 6.6); scene.add(f); }
   U.uNightMap.value = site.nightMap;
   console.log('stats', JSON.stringify(building.userData.stats), JSON.stringify(envGroup.userData.stats));
   console.log('report', JSON.stringify(building.userData.report.slice(0, 14)));
