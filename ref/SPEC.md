@@ -79,21 +79,26 @@ Central risalit (7 bays × 4.86 m between the towers):
 | Triple rectangular windows | 9.2 – 11.3 |
 | Balustrade | 12.6 |
 | Loggia of 7 semicircular arches on colonnettes | 12.6 – 21.3 (springing 19.2) |
-| Cornice | 23.7 |
-| 7 crocketed gables with trefoil oculi | 27.9 |
-| Pinnacles | 31 |
+| Cornice, directly over the arch crowns | 22.0 |
+| Attic screens: five round-headed lights (centre one open) | 22.6 – 24.6 |
+| Gable shoulders | 25.2 |
+| 7 crocketed gables with quatrefoils | 27.9 |
+| Pinnacles between the gables | ≈ 27.7 |
 
-Front towers:
+Front towers (re-measured on the S3 close-up, s = 14.26 px/m at z = 41):
 
 | Element | Height (m) |
 |---|---|
-| Cornice | 24.4 |
-| Lancet stage | 26.5 – 32.8 |
-| Gallery | 34.9 |
-| Pinnacled stage | to 42.6 |
-| Gallery | 42.6 |
-| Octagonal belfry | 42.6 – 49.6 |
-| Crocketed stone spire | 50.0 – 65.8 |
+| Open arcade band (8 round arches per face) | 23.9 – 25.9 |
+| Corbel table, shaft set-back | 26.3 |
+| Twin-light window between two slim lancets, each gabled | 27.4 – 33.3 |
+| Deep corbelled balcony, about 1 m beyond the shaft | 35.4 |
+| Statue stage: two canopied niches per face, statues on the angles | 37.0 – 41.4 |
+| Gallery | 41.4 |
+| Octagonal belfry, tall slender lancets, pinnacled angles | 42.4 – 47.5 |
+| Cornice | 47.5 – 48.2 |
+| Crown arcade (two small lancets per side) | 48.2 – 51.3 |
+| Crocketed stone spire (base Ø ≈ 3.4 m) | 51.5 – 65.2, cross to ≈ 67 |
 
 End blocks, river face (5 bays × 4.7 m):
 
@@ -122,13 +127,23 @@ Chamber blocks:
 | Octagonal lantern | 40.5 – 47.3 |
 | Slate spire | to 57.7 |
 
+Terrace and quay (S3):
+
+| Element | Value |
+|---|---|
+| Embankment wall: dressed limestone, plinth, cornice, pilaster strips | quay −3.6 → terrace 0 |
+| Balustrade with pedestals about every 7.6 m | 0 – 1.24 m |
+| Stair flights to the quay, centred on the accent-bay axes | x = ±56.7, 15.2 m wide, 22 risers |
+| Steps up to the river arcade floor, full width of each wing | 0 → 2.8 m |
+| Bollards on the river edge of the quay road | every 4 m |
+
 ## Dome (S3, S4)
 
 | Element | Value |
 |---|---|
 | Drum | 16-sided, outer Ø ≈ 28 m; buttresses to r ≈ 17 m with pinnacles to ≈ 57 m |
-| Drum tracery windows | 34.1 – 41.5 m |
-| Quatrefoil oculi | 44.2 – 47.0 m |
+| Drum tracery windows (run down to just above the risalit gables) | 30.4 – 41.5 m |
+| Eight-petalled rose windows | 44.2 – 47.0 m |
 | Small-arch gallery | 48.5 – 50.9 m |
 | Balustrade | 52.4 m |
 | Shell | 53.6 → 73.1 m, widest Ø 24.5 m at 59 m; maroon slate, 16 dark ribs |
