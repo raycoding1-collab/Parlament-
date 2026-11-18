@@ -123,3 +123,53 @@ export function dressRoof(kit, r, { dormers = true, dormerStep = 5.5, dormerAt =
     }
   }
 }
+
+/**
+ * Truncated (hip or gable) roof as on the Országház: steep slate slopes rising to a
+ * flat top sheathed in copper. inset = horizontal run of the slopes; ends: 'hip'|'gable'|'none'.
+ * Returns { roof: slopes, copper: flat top, stone: gable-end walls, top: [corners] }.
+ */
+export function flatTopRoof(x0, x1, z0, z1, y, h, inset, axis = 'x', ends = ['hip', 'hip']) {
+  const sw = axis === 'x' ? (u, v) => [u, v] : (u, v) => [v, u];
+  const [u0, u1, v0, v1] = axis === 'x' ? [x0, x1, z0, z1] : [z0, z1, x0, x1];
+  const s = Math.min(inset, (v1 - v0) / 2 - 0.05);
+  const su0 = ends[0] === 'hip' ? s : 0, su1 = ends[1] === 'hip' ? s : 0;
+  const P = (u, yy, v) => { const [x, z] = sw(u, v); return V3(x, yy, z); };
+  const T = [P(u0 + su0, y + h, v0 + s), P(u1 - su1, y + h, v0 + s), P(u1 - su1, y + h, v1 - s), P(u0 + su0, y + h, v1 - s)];
+  const B = [P(u0, y, v0), P(u1, y, v0), P(u1, y, v1), P(u0, y, v1)];
+  const inside = P((u0 + u1) / 2, y + h * 0.4, (v0 + v1) / 2);
+  const slopes = [[B[0], B[1], T[1], T[0]], [B[2], B[3], T[3], T[2]]];
+  const gables = [];
+  if (ends[0] === 'hip') slopes.push([B[3], B[0], T[0], T[3]]); else if (ends[0] === 'gable') gables.push([B[3], B[0], T[0], T[3]]);
+  if (ends[1] === 'hip') slopes.push([B[1], B[2], T[2], T[1]]); else if (ends[1] === 'gable') gables.push([B[1], B[2], T[2], T[1]]);
+  slopes.push([B[0], B[1], B[2], B[3]]);
+  return {
+    roof: [polys(slopes, inside)],
+    copper: [polys([T], P((u0 + u1) / 2, y, (v0 + v1) / 2))],
+    stone: gables.length ? [polys(gables, inside)] : [],
+    top: T, frame: { axis, u0, u1, v0, v1, y, h, s, su0, su1 },
+  };
+}
+
+/** Stone gable dormer of the river roofs: crocketed stone front, slate saddle roof (front at z=0). */
+export function gableDormer(w = 2.0, h = 3.2) {
+  const g = { stone: [], carve: [], roof: [], dark: [] };
+  const wh = h * 0.42, D = 3.0;
+  const ol = lancetOutline(w * 0.34, 0.25, wh - 0.1, 1, 8);
+  g.stone.push(extrude(shape([V2(-w / 2, -0.6), V2(w / 2, -0.6), V2(w / 2, wh), V2(0, h), V2(-w / 2, wh)], [ol]), 0.22, 0.0));
+  g.dark.push(flat(shape(ol), -0.16));
+  const len = Math.hypot(w / 2, h - wh), ang = Math.atan2(h - wh, w / 2);
+  for (const s of [-1, 1]) {
+    g.roof.push(tr(box(len + 0.1, 0.1, D), M(s * w / 4, (wh + h) / 2 - 0.02, -D / 2, 0, 1, 1, 1, 0, -s * ang)));
+    g.carve.push(tr(box(len, 0.12, 0.3), M(s * w / 4, (wh + h) / 2 + 0.05, 0.02, 0, 1, 1, 1, 0, -s * ang)));
+    for (let k = 1; k <= 3; k++) for (const c of crocket(0.2)) g.carve.push(tr(c, M(s * (w / 2) * (1 - k / 4), wh + (h - wh) * k / 4 + 0.12, 0.05, 0, 1, 1, 1, -1.2)));
+    g.stone.push(boxMin(s > 0 ? w / 2 - 0.15 : -w / 2, -0.6, -D, 0.15, wh + 0.6, D));
+  }
+  g.carve.push(...finial(0.7).carve.map(x => tr(x, M(0, h - 0.05, 0.02))));
+  return g;
+}
+
+/** Brick-and-stone chimney stack on the roof tops. */
+export function chimney(w = 1.0, d = 2.2, h = 2.4) {
+  return { stone: [boxMin(-w / 2, 0, -d / 2, w, h, d)], carve: [boxMin(-w / 2 - 0.08, h, -d / 2 - 0.08, w + 0.16, 0.18, d + 0.16), boxMin(-w / 2 - 0.12, h * 0.6, -d / 2 - 0.12, w + 0.24, 0.12, d + 0.24)] };
+}

@@ -49,10 +49,11 @@ export const PRESETS = {
 };
 
 export const VIEWS = {
-  danube: { label: 'Danube', pos: [-60, 6, 405], target: [0, 34, 0], fov: 34 },
-  aerial: { label: 'Aerial', pos: [330, 230, 360], target: [0, 26, -6], fov: 34 },
-  river: { label: 'River level', pos: [210, -5.5, 300], target: [10, 34, 0], fov: 38 },
-  dome: { label: 'Dome', pos: [62, 92, 128], target: [0, 66, 0], fov: 34 },
-  square: { label: 'Kossuth tér', pos: [96, 9, -182], target: [0, 32, -40], fov: 42 },
-  north: { label: 'From north', pos: [-430, 48, 210], target: [0, 34, 0], fov: 30 },
+  danube: { label: 'Danube', pos: [0, 2.0, 452], target: [0, 34, 12], fov: 30 },
+  river: { label: 'River level', pos: [190, -7.2, 330], target: [10, 32, 10], fov: 38 },
+  castle: { label: 'From the Castle', pos: [1100, 72, 820], target: [8, 30, 4], fov: 8.5 },
+  aerial: { label: 'Aerial', pos: [330, 230, 380], target: [0, 26, -6], fov: 34 },
+  dome: { label: 'Dome', pos: [60, 92, 132], target: [0, 66, 8], fov: 34 },
+  square: { label: 'Kossuth tér', pos: [95, 9, -180], target: [0, 32, -40], fov: 42 },
+  north: { label: 'From north', pos: [-430, 48, 230], target: [0, 34, 4], fov: 30 },
 };

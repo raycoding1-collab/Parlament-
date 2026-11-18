@@ -9,9 +9,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { createMaterials, U } from './materials/materials.js';
 import { Kit } from './geo/kit.js';
-import { buildBuilding } from './arch/building.js';
-import { buildSite, SITE } from './env/site.js';
-import { buildCity } from './env/city.js';
+import { buildBuilding2 } from './arch/building2.js';
+import { buildSite2, LEVEL } from './env/site2.js';
 import { createSky } from './env/sky.js';
 import { createWater } from './env/water.js';
 import { PRESETS, VIEWS } from './presets.js';
@@ -72,29 +71,29 @@ async function init() {
 
   await step('Laying out the plan: wings, courtyards, chambers…', 18);
   const kit = new Kit(mats);
-  buildBuilding(kit);
+  buildBuilding2(kit);
   await step('Raising the dome, towers and pinnacles…', 40);
   building = kit.build();
   building.name = 'Orszaghaz';
   scene.add(building);
   await step('Building the embankment, Kossuth tér, Pest and Buda…', 55);
   const kitE = new Kit(mats);
-  const site = buildSite(kitE, mats, U);
-  buildCity(kitE);
+  const site = buildSite2(kitE, mats, U);
   await step('Instancing geometry…', 68);
   envGroup = kitE.build();
   envGroup.name = 'Budapest';
   scene.add(envGroup);
   flag = site.flag; scene.add(flag);
   console.log('stats', JSON.stringify(building.userData.stats), JSON.stringify(envGroup.userData.stats));
+  console.log('report', JSON.stringify(building.userData.report.slice(0, 14)));
 
   sky = createSky();
   scene.add(sky.mesh);
   water = createWater(quality.refl);
   const getRC = water.getReflectionCamera;
   water.getReflectionCamera = function (cam) { const rc = getRC.call(this, cam); rc.layers.mask = quality.reflDetail ? cam.layers.mask : 1; return rc; };
-  water.position.y = SITE.water;
-  water.position.z = SITE.lowerEdge + 1300;
+  water.position.y = LEVEL.water;
+  water.position.z = 230;
   scene.add(water);
   // render the reflection only once per frame (GTAO re-renders the scene)
   const origBefore = water.onBeforeRender;
@@ -119,13 +118,16 @@ async function init() {
 
   // floodlight projector positions (roof-mounted) for dome, towers, chambers
   const pts = [];
-  // dome: projectors on the podium terrace corners and on the four arm ridges
-  for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2 + Math.PI / 4; pts.push([Math.sin(a) * 26, 31.5, Math.cos(a) * 26, 0.55]); }
-  for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2; pts.push([Math.sin(a) * 46, 36, Math.cos(a) * 46, 1.5]); }
-  pts.push([0, 20, 150, 7.0]);   // long-throw projector on the quay for the dome's river face
-  pts.push([0, 20, -170, 5.0]);  // from Kossuth tér
-  // chamber halls and their towers, end pavilions
-  for (const sx of [-1, 1]) { pts.push([sx * 61, 30, 40, 0.7]); pts.push([sx * 61, 30, -40, 0.6]); pts.push([sx * 125, 30, 70, 0.6]); }
+  const DZ = 7.8; // dome axis (OSM plan)
+  // dome: projectors on the terrace round the drum, on the arm roofs, and on the drum balustrade for the shell
+  for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2 + Math.PI / 4; pts.push([Math.sin(a) * 24, 29.5, DZ + Math.cos(a) * 24, 0.4]); }
+  for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2 + Math.PI / 8; pts.push([Math.sin(a) * 16.5, 53.5, DZ + Math.cos(a) * 16.5, 0.28]); }
+  // dedicated dome projectors (aimed at the shell from the surrounding roofs)
+  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; pts.push([Math.sin(a) * 30, 60, DZ + Math.cos(a) * 30, 1.25]); }
+  pts.push([0, 22, 150, 6.0]);    // long-throw projector on the Danube quay
+  pts.push([0, 20, -150, 4.0]);   // from Kossuth tér
+  // chamber halls and their turrets, front towers, end blocks
+  for (const sx of [-1, 1]) { pts.push([sx * 61, 26, 34, 0.75]); pts.push([sx * 61, 26, -20, 0.6]); pts.push([sx * 21.4, 26, 60, 0.9]); pts.push([sx * 114, 26, 62, 0.6]); pts.push([sx * 150, 20, 8, 0.5]); }
   pts.forEach((p, i) => U.uPoints.value[i].set(...p));
 
   await step('Compiling shaders…', 82);

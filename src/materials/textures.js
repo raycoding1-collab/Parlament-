@@ -140,7 +140,7 @@ export function roofTiles(size = 1024, world = 3.0, seed = 11, palette = 'red') 
   const nx = 12, ny = 18;
   const tint = [];
   for (let j = 0; j < ny; j++) { tint.push([]); for (let i = 0; i < nx; i++) tint[j].push([(R() - 0.5), R()]); }
-  const base = palette === 'red' ? [0.40, 0.11, 0.075] : [0.36, 0.16, 0.12];
+  const base = palette === 'red' ? [0.40, 0.11, 0.075] : palette === 'slate' ? [0.27, 0.15, 0.145] : palette === 'dome' ? [0.33, 0.165, 0.155] : [0.36, 0.16, 0.12];
   for (let y = 0; y < size; y++) {
     const ym = (y / px);
     const row = Math.floor(ym / th);
@@ -268,4 +268,44 @@ export function cityFacade(size = 1024, seed = 51) {
     emi[i] = clamp01(er) * 255; emi[i + 1] = clamp01(eg) * 255; emi[i + 2] = clamp01(eb) * 255; emi[i + 3] = 255;
   }
   return { map: toTexture(col, size, true, world), emissiveMap: toTexture(emi, size, true, world) };
+}
+
+/** Courtyard brick: 25×6.5 cm stretcher bond, warm ochre-red with mortar joints. */
+export function brick(size = 1024, world = 4, seed = 61) {
+  const noise = makeNoise(seed), R = rng(seed);
+  const col = new Uint8Array(size * size * 4), hgt = new Float32Array(size * size), rough = new Uint8Array(size * size * 4);
+  const px = size / world, bw = 0.25 * px, bh = 0.0667 * px;
+  const tints = []; for (let i = 0; i < 4096; i++) tints.push([R() - 0.5, R() - 0.5]);
+  for (let y = 0; y < size; y++) {
+    const row = Math.floor(y / bh), fy = y - row * bh;
+    for (let x = 0; x < size; x++) {
+      const xs = x + (row % 2) * bw * 0.5;
+      const ci = Math.floor(xs / bw), fx = xs - ci * bw;
+      const mortar = fx < 0.012 * px || fy < 0.01 * px;
+      const t = tints[(row * 61 + ci) % 4096];
+      const n = fbm(noise, x / size, y / size, 16, 4);
+      const i = (y * size + x) * 4;
+      let r, g, b;
+      if (mortar) { r = g = b = 0.62 + (n - 0.5) * 0.1; g *= 0.98; b *= 0.94; }
+      else { const L = 0.95 + t[0] * 0.22 + (n - 0.5) * 0.18; r = 0.66 * L; g = (0.40 + t[1] * 0.05) * L; b = 0.27 * L; }
+      col[i] = clamp01(r) * 255; col[i + 1] = clamp01(g) * 255; col[i + 2] = clamp01(b) * 255; col[i + 3] = 255;
+      hgt[y * size + x] = mortar ? 0 : 1 + n * 0.2;
+      rough[i] = 255; rough[i + 1] = (mortar ? 0.95 : 0.8) * 255; rough[i + 2] = 255; rough[i + 3] = 255;
+    }
+  }
+  return { map: toTexture(col, size, true, world), normalMap: toTexture(normalFromHeight(hgt, size, 2.0), size, false, world), roughnessMap: toTexture(rough, size, false, world) };
+}
+
+/** Zsolnay glazed ceramic band: diamond pattern in green, ochre and cream. */
+export function zsolnay(size = 256, world = 1.0) {
+  const col = new Uint8Array(size * size * 4);
+  const pal = [[0.16, 0.42, 0.30], [0.80, 0.62, 0.22], [0.90, 0.86, 0.72], [0.55, 0.20, 0.12]];
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const u = x / size * 4, v = y / size * 4;
+    const d = Math.abs((u % 1) - 0.5) + Math.abs((v % 1) - 0.5);
+    const k = d < 0.2 ? 0 : d < 0.32 ? 1 : d < 0.45 ? 2 : 3;
+    const c = pal[k], i = (y * size + x) * 4;
+    col[i] = c[0] * 255; col[i + 1] = c[1] * 255; col[i + 2] = c[2] * 255; col[i + 3] = 255;
+  }
+  return { map: toTexture(col, size, true, world) };
 }

@@ -25,6 +25,9 @@
   #hide { position: fixed; right: max(16px, env(safe-area-inset-right)); top: max(16px, env(safe-area-inset-top)); background: var(--glass); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,.08); }
   body.clean #ui, body.clean #title, body.clean #hint { opacity: 0; pointer-events: none; }
   body.clean #hide { opacity: .35; }
+  #credit { position: fixed; left: 12px; bottom: 8px; font-size: 10px; opacity: .5; letter-spacing: .02em; }
+  #credit a { color: inherit; }
+  body.clean #credit { opacity: .3; }
   #hint { position: fixed; right: 18px; bottom: 18px; font-size: 11px; opacity: .45; letter-spacing: .05em; pointer-events: none; }
   @media (max-width: 760px) { #hint { display: none; } button, select { font-size: 12px; padding: 7px 10px; } #ui { gap: 6px; } }
   #loading { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 60%, #1a1712 0%, #07080c 70%); z-index: 10; transition: opacity .9s; }
@@ -52,6 +55,7 @@
   <div class="group">
     <button data-view="danube">Danube</button>
     <button data-view="river">River level</button>
+    <button data-view="castle">Castle</button>
     <button data-view="aerial">Aerial</button>
     <button data-view="dome">Dome</button>
     <button data-view="square">Kossuth tér</button>
@@ -65,6 +69,7 @@
   </div>
 </div>
 <div id="hint">drag · orbit &nbsp; right-drag · pan &nbsp; scroll · zoom</div>
+<div id="credit">Plan &amp; city: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL) · heights: Copernicus Urban Atlas</div>
 <div id="loading"><div class="box"><h2>Országház</h2><div class="sub">Hungarian Parliament Building</div><div class="track"><div id="bar"></div></div><div id="status">Preparing…</div></div></div>
 <script type="module" src="./app.js"></script>
 </body>
