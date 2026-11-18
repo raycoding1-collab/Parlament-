@@ -28,10 +28,17 @@ front. Every value is listed with its source in [`ref/SPEC.md`](ref/SPEC.md).
   * Kossuth tér's paving, lawns and reflecting pool
   * tram line 2 and the mapped trees
   * the bridges, and the Buda hills
-* **Lighting:**
-  * five moods: Morning, Day, Golden hour, Blue hour and Night
-  * the golden night floodlighting, modelled as rows of uplights plus projectors
-  * planar reflections in the river, GTAO, bloom and filmic tone mapping
+* **Lighting and realism:**
+  * **Sky:** a single-scattering atmosphere (Rayleigh, Mie and ozone) is rendered into an HDR sky texture whenever the sun moves. The sun's colour, the haze, the cloud lighting, the water glitter and the image-based lighting all come from that same model.
+  * **Twilight and night:** a twilight-glow term for blue hour, plus airglow and Budapest's light pollution at night, with stars and the moon.
+  * **Aerial perspective:** height-dependent haze with colour-dependent extinction and forward scattering towards the sun, in every material.
+  * **Weathering:** every stone, slate, copper and city surface gets world-space weathering: rain streaks, soot under overhangs, dirt on ledges, a splash zone at the base and tonal variation. No two of the instanced bays look alike.
+  * **Progressive refinement:** when the view is still, jittered frames accumulate. Halton sub-pixel offsets anti-alias, and samples across the sun's disc give real soft penumbrae. 4K stills use the same path.
+  * **Water:** the Danube's reflections stretch into long-exposure streaks.
+  * **Night ground lighting:** a lightmap puts warm pools under every lamp and along the real OSM streets, and spreads the floodlights' spill over the terrace.
+  * **Night floodlighting:** the golden night lighting is modelled as rows of uplights plus projectors.
+  * **Rendering:** GTAO, bloom, a filmic grade (vignette, split-tone, fine grain, slight chromatic aberration) and a shadow frustum fitted to the view.
+  * **Moods:** Morning, Day, Golden hour, Blue hour and Night.
 * **Exports:** 4K stills (3840 × 2160) and a GLB of the building, using `EXT_mesh_gpu_instancing`.
 
 The Kossuth tér (east) side follows the surveyed plan and the documented
